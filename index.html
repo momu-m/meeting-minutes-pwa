@@ -22,6 +22,7 @@
     
     <!-- CSS Stylesheet -->
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="print.css" media="print">
 </head>
 <body>
     <div class="app-container">
@@ -133,6 +134,14 @@
                 <div class="modal-header">
                     <h2 id="detail-title">Protokoll Details</h2>
                     <div class="detail-actions">
+                        <button id="share-report-btn" class="icon-button-small" title="Teilen">
+                            <!-- Teilen-Icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                        </button>
+                        <button id="pdf-report-btn" class="icon-button-small" title="Als PDF drucken">
+                            <!-- PDF/Drucken-Icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </button>
                         <button id="copy-report-btn" class="icon-button-small" title="Kopieren">
                             <!-- Kopieren-Icon -->
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
@@ -162,7 +171,7 @@
         }
     </script>
     
-    <!-- App Logik -->
+    <!-- App-Logik -->
     <script type="module" src="app.js"></script>
 </body>
 </html>

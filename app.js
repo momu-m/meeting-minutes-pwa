@@ -80,6 +80,8 @@ const closeDetailBtn = document.getElementById('close-detail-btn');
 const detailTitle = document.getElementById('detail-title');
 const detailBodyContent = document.getElementById('detail-body-content');
 const copyReportBtn = document.getElementById('copy-report-btn');
+const shareReportBtn = document.getElementById('share-report-btn');
+const pdfReportBtn = document.getElementById('pdf-report-btn');
 const deleteReportBtn = document.getElementById('delete-report-btn');
 
 // ID des aktuell geoeffneten Berichts
@@ -762,7 +764,47 @@ ${schweizerHinweis}`;
 }
 
 // ============================================================
-// ABSCHNITT 10: HILFSFUNKTIONEN
+// ABSCHNITT 11: Export & Teilen
+// ============================================================
+
+// PDF Drucken
+pdfReportBtn.addEventListener('click', () => {
+    // Der Browser oeffnet den nativen Druck-Dialog, 
+    // welcher auf iOS/Mac "Als PDF sichern" erlaubt.
+    // Ein spezielles @media print CSS kuemmert sich um das Layout.
+    window.print();
+});
+
+// Teilen per Web Share API (WhatsApp, E-Mail, AirDrop etc.)
+shareReportBtn.addEventListener('click', async () => {
+    if (!currentActiveReportId) return;
+
+    // Finde den aktuellen Bericht in der UI oder aus der DB
+    // Hier nutzen wir einfach den Text aus dem Modal
+    const title = detailTitle.textContent;
+    const text = detailBodyContent.innerText;
+
+    const shareData = {
+        title: title,
+        text: title + "\n\n" + text,
+    };
+
+    try {
+        if (navigator.share) {
+            await navigator.share(shareData);
+            console.log('Erfolgreich geteilt');
+        } else {
+            // Fallback: mailto Link oeffnen, wenn Share API nicht existiert (Desktop Safari manchmal)
+            const mailtoLink = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(shareData.text)}`;
+            window.location.href = mailtoLink;
+        }
+    } catch (err) {
+        console.error('Fehler beim Teilen:', err);
+    }
+});
+
+// ============================================================
+// ABSCHNITT 12: Hilfsfunktionen
 // ============================================================
 
 /**
