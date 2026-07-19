@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Asetronics Meeting-Minuten AI</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="KI-gestuetzte Meeting-Protokolle fuer Asetronics AG. Aufnehmen, transkribieren und strukturieren mit Gemini AI.">
+    
+    <!-- PWA-Unterstuetzung fuer iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Meeting AI">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Schriftart von Google Fonts (Outfit: modern und gut lesbar) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- ============================== -->
+        <!-- KOPFZEILE (Header)             -->
+        <!-- ============================== -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="logo-brand">Asetronics</span>
+                <span class="logo-title">Meeting AI</span>
+            </div>
+            <button id="settings-btn" class="icon-button" title="Einstellungen">
+                <!-- Zahnrad-Icon (SVG) -->
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </button>
+        </header>
+
+        <!-- ============================== -->
+        <!-- HAUPTINHALT                    -->
+        <!-- ============================== -->
+        <main class="app-main">
+            <!-- Aufnahme-Bereich -->
+            <section class="recorder-section card">
+                <div class="recorder-status" id="record-status">Bereit zum Aufnehmen</div>
+                <div class="timer" id="record-timer">00:00</div>
+                
+                <!-- Aufnahme-Knopf mit Puls-Animation -->
+                <div class="recorder-control">
+                    <div class="pulse-ring" id="pulse-ring"></div>
+                    <button id="record-btn" class="record-button">
+                        <!-- Mikrofon-Icon (wird bei Aufnahme versteckt) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="mic-icon"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                        <!-- Stopp-Icon (wird dynamisch eingeblendet) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="currentColor" id="stop-icon" class="hidden"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect></svg>
+                    </button>
+                </div>
+
+                <!-- Hinweis-Banner: Wird waehrend der Aufnahme angezeigt -->
+                <div class="recording-hint hidden" id="recording-hint">
+                    <!-- Info-Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                    <span>Bildschirm bleibt an waehrend der Aufnahme</span>
+                </div>
+
+                <!-- Audio-Datei importieren -->
+                <div class="import-area">
+                    <button id="import-btn" class="secondary-button">
+                        <!-- Upload-Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <span>Audio-Datei importieren</span>
+                    </button>
+                    <!-- Verstecktes Datei-Input (wird per JS geoeffnet) -->
+                    <input type="file" id="audio-file-input" accept="audio/*" class="hidden">
+                </div>
+                
+                <!-- API-Ladestatus -->
+                <div class="loading-container hidden" id="loading-container">
+                    <div class="spinner"></div>
+                    <div class="loading-text" id="loading-text">Gemini analysiert das Meeting...</div>
+                </div>
+            </section>
+
+            <!-- Liste der gespeicherten Berichte -->
+            <section class="history-section">
+                <h2 class="section-title">Letzte Protokolle</h2>
+                <div class="reports-list" id="reports-list">
+                    <!-- Platzhalter wenn noch keine Berichte vorhanden sind -->
+                    <div class="empty-state" id="empty-state">
+                        <p>Noch keine Protokolle vorhanden.</p>
+                        <p class="subtitle">Nehmen Sie Ihr erstes Meeting auf, um ein Protokoll zu erstellen.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ============================== -->
+        <!-- EINSTELLUNGS-MODAL             -->
+        <!-- ============================== -->
+        <div id="settings-modal" class="modal hidden">
+            <div class="modal-content card">
+                <div class="modal-header">
+                    <h2>Einstellungen</h2>
+                    <button id="close-settings-btn" class="close-button">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="api-key-input">Gemini API Key</label>
+                        <input type="password" id="api-key-input" placeholder="AIzaSy...">
+                        <p class="help-text">Ihr API-Key wird nur lokal auf Ihrem Geraet gespeichert.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="prompt-select">Analyse-Vorlage</label>
+                        <select id="prompt-select">
+                            <option value="standard">Standard (Zusammenfassung & Aufgaben)</option>
+                            <option value="detailed">Ausfuehrlich (inkl. Risiken & Details)</option>
+                            <option value="technical">Technisch (Fokus auf Fehler & Loesungen)</option>
+                        </select>
+                    </div>
+                    <button id="save-settings-btn" class="primary-button">Speichern</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================== -->
+        <!-- DETAIL-MODAL (Bericht-Ansicht) -->
+        <!-- ============================== -->
+        <div id="detail-modal" class="modal hidden">
+            <div class="modal-content detail-content card">
+                <div class="modal-header">
+                    <h2 id="detail-title">Protokoll Details</h2>
+                    <div class="detail-actions">
+                        <button id="copy-report-btn" class="icon-button-small" title="Kopieren">
+                            <!-- Kopieren-Icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                        <button id="delete-report-btn" class="icon-button-small danger" title="Loeschen">
+                            <!-- Papierkorb-Icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                        <button id="close-detail-btn" class="close-button">&times;</button>
+                    </div>
+                </div>
+                <div class="modal-body detail-body" id="detail-body-content">
+                    <!-- Berichtsinhalt wird hier dynamisch gerendert -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service-Worker-Registrierung (fuer Offline-Funktionalitaet und PWA) -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker registriert', reg))
+                    .catch(err => console.error('Service Worker Fehler', err));
+            });
+        }
+    </script>
+    
+    <!-- App-Logik -->
+    <script src="app.js"></script>
+</body>
+</html>

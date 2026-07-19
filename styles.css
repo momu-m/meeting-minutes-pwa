@@ -1,0 +1,640 @@
+/* ============================================================
+   ASETRONICS MEETING-MINUTEN AI — Stylesheet (styles.css)
+   ============================================================
+   Design-System:
+   - Dunkles Premium-Design (Dark Mode)
+   - Glassmorphismus-Karten (halbtransparent mit Blur)
+   - Outfit-Schriftart (Google Fonts)
+   - Angepasst fuer iPhone und iPad
+   ============================================================ */
+
+/* ============================================================
+   DESIGN-VARIABLEN (CSS Custom Properties)
+   ============================================================
+   Alle Farben und Werte an einer Stelle definiert.
+   So kann man das Design leicht aendern. */
+:root {
+    --bg-primary: #0f172a;          /* Haupthintergrund (sehr dunkel) */
+    --bg-secondary: #1e293b;        /* Sekundaerer Hintergrund */
+    --bg-glass: rgba(30, 41, 59, 0.7); /* Glaseffekt-Hintergrund */
+    --border-glass: rgba(255, 255, 255, 0.08); /* Subtile Raender */
+    --accent-color: #3b82f6;        /* Akzentfarbe (Blau) */
+    --accent-glow: rgba(59, 130, 246, 0.35); /* Leuchteffekt */
+    --text-main: #f8fafc;           /* Haupttextfarbe (fast weiss) */
+    --text-muted: #94a3b8;          /* Gedaempfter Text (grau) */
+    --danger-color: #ef4444;        /* Warnfarbe (Rot) */
+    --success-color: #10b981;       /* Erfolgsfarbe (Gruen) */
+    --warning-color: #f59e0b;       /* Hinweisfarbe (Orange/Gelb) */
+    --font-family: 'Outfit', sans-serif;
+    --radius-lg: 16px;              /* Grosse Rundung */
+    --radius-md: 12px;              /* Mittlere Rundung */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   GLOBALER RESET
+   ============================================================ */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    /* Entfernt den blauen Tap-Effekt auf iOS */
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    font-family: var(--font-family);
+    min-height: 100vh;
+    padding: 0;
+    overflow-x: hidden;
+    line-height: 1.5;
+}
+
+/* ============================================================
+   APP-CONTAINER (Hauptrahmen)
+   ============================================================
+   Zentriert den Inhalt und begrenzt die Breite auf 500px.
+   Beruecksichtigt die Safe Area (Notch) auf neueren iPhones. */
+.app-container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 16px;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* ============================================================
+   KOPFZEILE (Header)
+   ============================================================ */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 4px;
+}
+
+.logo-area {
+    display: flex;
+    flex-direction: column;
+}
+
+/* "ASETRONICS" in Grossbuchstaben, Akzentfarbe */
+.logo-brand {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent-color);
+    font-weight: 700;
+}
+
+/* "Meeting AI" als Haupttitel */
+.logo-title {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+/* ============================================================
+   KARTEN-BASIS (Card Design)
+   ============================================================
+   Glasmorphismus: halbtransparenter Hintergrund mit Blur-Effekt */
+.card {
+    background: var(--bg-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+}
+
+/* ============================================================
+   AUFNAHME-BEREICH
+   ============================================================ */
+.recorder-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Status-Text (z.B. "Bereit zum Aufnehmen") */
+.recorder-status {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-align: center;
+}
+
+/* Timer-Anzeige (z.B. "03:42") */
+.timer {
+    font-size: 48px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums; /* Gleichbreite Zahlen */
+    letter-spacing: -1px;
+}
+
+/* Container fuer den Aufnahme-Button und die Puls-Animation */
+.recorder-control {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 10px 0;
+}
+
+/* Der runde Aufnahme-Button (rot) */
+.record-button {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: none;
+    background-color: var(--danger-color);
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 2;
+    transition: var(--transition-smooth);
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
+
+/* Drueck-Effekt auf dem Button */
+.record-button:active {
+    transform: scale(0.92);
+}
+
+/* Button waehrend der Aufnahme: dunkel mit weissem Rand */
+.record-button.recording {
+    background-color: var(--bg-secondary);
+    border: 3px solid var(--text-main);
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
+}
+
+/* Puls-Ring: expandiert und verblasst (nur sichtbar waehrend Aufnahme) */
+.pulse-ring {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background-color: var(--danger-color);
+    opacity: 0;
+    z-index: 1;
+    transition: var(--transition-smooth);
+}
+
+/* Puls-Animation wird aktiviert wenn der Button die Klasse "recording" hat */
+.recording + .pulse-ring {
+    animation: pulse 1.6s infinite ease-out;
+}
+
+/* Puls-Animation: Ring wird groesser und verblasst */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1.6);
+        opacity: 0;
+    }
+}
+
+/* ============================================================
+   HINWEIS-BANNER (waehrend der Aufnahme)
+   ============================================================
+   Zeigt dem Nutzer an, dass der Bildschirm anbleibt */
+.recording-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    color: var(--warning-color);
+    width: 100%;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.recording-hint svg {
+    flex-shrink: 0;
+    color: var(--warning-color);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================================
+   AUDIO-IMPORT-BEREICH
+   ============================================================
+   Button zum Hochladen von Sprachmemos */
+.import-area {
+    width: 100%;
+    margin-top: 4px;
+}
+
+.secondary-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 16px;
+    background: transparent;
+    border: 1px dashed var(--border-glass);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    font-family: var(--font-family);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.secondary-button:active {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    transform: scale(0.98);
+}
+
+.secondary-button svg {
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   LADE-ANZEIGE (Spinner)
+   ============================================================ */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top: 3px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* ============================================================
+   LISTEN-BEREICH (Berichte/Protokolle)
+   ============================================================ */
+.history-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding-left: 4px;
+}
+
+.reports-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Einzelnes Berichts-Element in der Liste */
+.report-item {
+    background: var(--bg-glass);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.report-item:active {
+    transform: scale(0.98);
+    background: rgba(30, 41, 59, 0.9);
+}
+
+.report-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.report-title {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.report-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* ============================================================
+   BUTTONS UND ICONS
+   ============================================================ */
+
+/* Runder Icon-Button (z.B. Zahnrad in der Kopfzeile) */
+.icon-button {
+    background: none;
+    border: none;
+    color: var(--text-main);
+    cursor: pointer;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    transition: var(--transition-smooth);
+}
+
+.icon-button:active {
+    background-color: var(--bg-secondary);
+}
+
+/* Kleiner Icon-Button (z.B. Kopieren/Loeschen in der Detailansicht) */
+.icon-button-small {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    transition: var(--transition-smooth);
+}
+
+.icon-button-small:active {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+
+.icon-button-small.danger:active {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+/* ============================================================
+   MODALS (Popup-Fenster)
+   ============================================================
+   Auf Handys: gleiten von unten herein
+   Auf groesseren Bildschirmen: zentriert */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-end; /* Von unten (wie iOS Sheet) */
+    z-index: 10;
+    transition: var(--transition-smooth);
+}
+
+/* Auf groesseren Bildschirmen: zentriert */
+@media(min-width: 500px) {
+    .modal {
+        align-items: center;
+        padding: 20px;
+    }
+}
+
+.modal-content {
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
+}
+
+@media(min-width: 500px) {
+    .modal-content {
+        max-width: 460px;
+        border-radius: var(--radius-lg);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-glass);
+    padding-bottom: 12px;
+}
+
+.modal-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* Schliess-Button (X) */
+.close-button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ============================================================
+   FORMULARE (Eingabefelder)
+   ============================================================ */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-group label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.form-group input[type="password"],
+.form-group select {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-glass);
+    color: var(--text-main);
+    padding: 12px;
+    border-radius: var(--radius-md);
+    font-family: var(--font-family);
+    font-size: 15px;
+    outline: none;
+    transition: var(--transition-smooth);
+}
+
+/* Fokus-Effekt: Blauer Rand und Leuchteffekt */
+.form-group input[type="password"]:focus,
+.form-group select:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.help-text {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* Primaer-Button (z.B. "Speichern") */
+.primary-button {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    font-family: var(--font-family);
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.primary-button:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+}
+
+/* ============================================================
+   LEERER ZUSTAND (wenn keine Berichte vorhanden sind)
+   ============================================================ */
+.empty-state {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-muted);
+}
+
+.empty-state p {
+    font-size: 14px;
+}
+
+.empty-state .subtitle {
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+/* ============================================================
+   DETAIL-ANSICHT (Markdown-Bericht)
+   ============================================================ */
+.detail-content {
+    max-height: 90vh;
+}
+
+.detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.detail-body {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #e2e8f0;
+}
+
+.detail-body h1 {
+    font-size: 20px;
+    margin-top: 16px;
+    margin-bottom: 8px;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border-glass);
+    padding-bottom: 4px;
+}
+
+.detail-body h2 {
+    font-size: 17px;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    color: var(--text-main);
+}
+
+.detail-body h3 {
+    font-size: 15px;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    color: var(--accent-color);
+}
+
+.detail-body li {
+    margin-left: 18px;
+    margin-bottom: 4px;
+}
+
+.detail-body input[type="checkbox"] {
+    margin-right: 6px;
+    transform: scale(1.1);
+}
+
+.detail-body strong {
+    color: white;
+}
+
+.detail-body br {
+    display: block;
+    content: "";
+    margin-top: 8px;
+}
+
+/* ============================================================
+   HILFSKLASSEN
+   ============================================================ */
+
+/* Versteckt ein Element komplett */
+.hidden {
+    display: none !important;
+}

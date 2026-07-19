@@ -1,0 +1,16 @@
+# Dateien die NICHT auf GitHub hochgeladen werden sollen
+# (Sicherheitsgruende und lokale Dateien)
+
+# SSL-Zertifikate (nur fuer lokales Testen)
+cert.pem
+key.pem
+
+# Lokaler Testserver (wird auf GitHub Pages nicht gebraucht)
+run_secure_server.py
+
+# macOS Systemdateien
+.DS_Store
+
+# Editor-Dateien
+.vscode/
+.idea/
