@@ -1,55 +1,56 @@
 // ============================================================
-// ASETRONICS MEETING-MINUTEN AI — Haupt-Logik (app.js)
-import { db, auth, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, orderBy, signInAnonymously, onAuthStateChanged } from './firebase-config.js';
+// ASETRONICS MEETING-MINUTEN AI — Haupt-Logik (app.js) v2.0
 // ============================================================
-// Diese Datei steuert:
-//   1. IndexedDB-Datenbank (Berichte speichern, laden, loeschen)
-//   2. Einstellungen (API-Key, Vorlage)
-//   3. Mikrofon-Aufnahme mit Wake Lock (Bildschirm bleibt an)
-//   4. Audio-Datei-Import (Sprachmemos hochladen)
-//   5. Gemini-API-Verarbeitung (Audio → Protokoll)
-//   6. Anzeige und Interaktion (Berichte anzeigen, kopieren, loeschen)
-// ============================================================
-
-// ============================================================
-// ABSCHNITT 0: Konstanten und globale Variablen
+// Diese Datei ist das "Hirn" der App. Sie koordiniert:
+//
+//   1. Initialisierung (Auth, Settings, Migration alter Daten)
+//   2. UI-Ereignisse (Aufnahme, Import, Buttons)
+//   3. Provider-System (welcher KI-Anbieter ist aktiv?)
+//   4. Sicherheit (Vault mit Master-Passwort)
+//
+// Die eigentliche Arbeit machen die Module in /services und /providers.
+// Diese Datei hier ist nur noch fuer die UI-Zusammenhaltung zustaendig.
 // ============================================================
 
-// Name der Datenbank (nur fuer Doku, Firebase verwaltet das)
-const DB_NAME = 'AsetronicsMeetingDB';
-const DB_VERSION = 1;
+// --- Externe Module ---
+import { db, auth, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, signInAnonymously, onAuthStateChanged } from './firebase-config.js';
 
-// Firebase User
-let currentUser = null;
-
-// Der MediaRecorder nimmt Audio auf
-let mediaRecorder;
-
-// Hier werden die aufgenommenen Audio-Stuecke (Chunks) zwischengespeichert
-let audioChunks = [];
-
-// Timer-Intervall fuer die Aufnahme-Anzeige (alle Sekunde aktualisiert)
-let recordTimerInterval;
-
-// Startzeit der aktuellen Aufnahme
-let startTime;
-
-// Ist gerade eine Aufnahme aktiv?
-let isRecording = false;
-
-// Wake Lock Referenz — haelt den Bildschirm an (wird nicht dunkel)
-let wakeLock = null;
-
-// Referenz auf den aktiven Audio-Stream (Mikrofon)
-let activeStream = null;
+// --- Eigene Services ---
+import { getAllProviders, getProviderById, getDefaultProvider } from './providers/base.js';
+import { saveReport, getAllReports, deleteReport, initAuth, getCurrentUserId } from './services/db.js';
+import { toast } from './services/notify.js';
+import { renderMarkdownToHTML, extractTitle, escapeHTML } from './utils/markdown.js';
+import { formatSwissDateTime, formatDuration, korrigiereSchweizerRechtschreibung } from './utils/format.js';
+import {
+    hasMasterPassword, isUnlocked, setupMasterPassword,
+    unlock, lock, tryRestoreSession,
+    storeApiKey, getApiKey, getProviderKeys, resetVault
+} from './services/keyvault.js';
 
 // ============================================================
-// ABSCHNITT 1: DOM-Elemente (Verweise auf HTML-Elemente)
+// ABSCHNITT 0: GLOBALE ZUSTAENDE
 // ============================================================
 
-// Aufnahme-Bereich
+let mediaRecorder = null;       // Nimmt Audio auf
+let audioChunks = [];           // Audio-Stuecke zwischenspeichern
+let recordTimerInterval = null; // Timer-Intervall
+let startTime = null;           // Startzeit der Aufnahme
+let isRecording = false;        // Aufnahme aktiv?
+let wakeLock = null;            // Bildschirm bleibt an
+let activeStream = null;        // Mikrofon-Stream
+let currentUser = null;         // Firebase-User
+let currentActiveReportId = null;  // Aktuell offener Bericht
+let currentProvider = getDefaultProvider();  // Aktiver KI-Anbieter
+
+// === localStorage-Schluessel fuer Settings (nicht verschluesselt) ===
+const LS_SELECTED_PROVIDER = 'selected_provider';   // Welcher Provider ist aktiv
+const LS_PROMPT_TEMPLATE = 'prompt_template';        // Welche Vorlage
+
+// ============================================================
+// ABSCHNITT 1: DOM-ELEMENTE (Verweise auf HTML)
+// ============================================================
+
 const recordBtn = document.getElementById('record-btn');
-const pulseRing = document.getElementById('pulse-ring');
 const micIcon = document.getElementById('mic-icon');
 const stopIcon = document.getElementById('stop-icon');
 const statusText = document.getElementById('record-status');
@@ -58,23 +59,32 @@ const loadingContainer = document.getElementById('loading-container');
 const loadingText = document.getElementById('loading-text');
 const reportsList = document.getElementById('reports-list');
 const emptyState = document.getElementById('empty-state');
-
-// Hinweis-Banner (wird waehrend Aufnahme angezeigt)
 const recordingHint = document.getElementById('recording-hint');
-
-// Audio-Import-Button
 const importBtn = document.getElementById('import-btn');
 const audioFileInput = document.getElementById('audio-file-input');
 
-// Einstellungs-Modal
+// Einstellungen
 const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
 const saveSettingsBtn = document.getElementById('save-settings-btn');
-const apiKeyInput = document.getElementById('api-key-input');
+const providerSelect = document.getElementById('provider-select');
+const providerHelp = document.getElementById('provider-help');
+const apiKeysContainer = document.getElementById('api-keys-container');
 const promptSelect = document.getElementById('prompt-select');
+const passwordStatus = document.getElementById('password-status');
+const lockVaultBtn = document.getElementById('lock-vault-btn');
+const resetVaultBtn = document.getElementById('reset-vault-btn');
+const activeProviderBadge = document.getElementById('active-provider-badge');
 
-// Detail-Modal (Bericht-Ansicht)
+// Unlock-Modal
+const unlockModal = document.getElementById('unlock-modal');
+const unlockTitle = document.getElementById('unlock-title');
+const unlockHint = document.getElementById('unlock-hint');
+const masterPasswordInput = document.getElementById('master-password-input');
+const unlockBtn = document.getElementById('unlock-btn');
+
+// Detail-Modal
 const detailModal = document.getElementById('detail-modal');
 const closeDetailBtn = document.getElementById('close-detail-btn');
 const detailTitle = document.getElementById('detail-title');
@@ -84,195 +94,424 @@ const shareReportBtn = document.getElementById('share-report-btn');
 const pdfReportBtn = document.getElementById('pdf-report-btn');
 const deleteReportBtn = document.getElementById('delete-report-btn');
 
-// ID des aktuell geoeffneten Berichts
-let currentActiveReportId = null;
-
 // ============================================================
-// ABSCHNITT 2: App-Initialisierung
+// ABSCHNITT 2: APP-INITIALISIERUNG
 // ============================================================
 
-// Wenn die Seite vollstaendig geladen ist, wird die App initialisiert
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // 1. Gespeicherte Einstellungen laden (API-Key, Vorlage)
-        loadSettings();
+        // 1. Migration alter Daten (v1 -> v2)
+        await migrateV1ToV2();
 
-        // 2. Hintergrund-Schutz einrichten (Audio sichern bei Unterbrechung)
+        // 2. Firebase-Auth initialisieren
+        currentUser = await initAuth();
+        console.log('Firebase Auth OK, UID:', currentUser.uid);
+
+        // 3. Session wiederherstellen (wenn zuvor entsperrt)
+        const restored = await tryRestoreSession();
+
+        // 4. Settings in UI laden
+        loadSettingsUI();
+
+        // 5. Provider-Liste im Dropdown aufbauen
+        buildProviderDropdown();
+
+        // 6. Hintergrund-Schutz einrichten
         setupBackgroundProtection();
 
-        // 3. Firebase Auth: Anonym einloggen, damit Daten geschuetzt sind
-        await signInAnonymously(auth);
-        
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUser = user;
-                console.log("Firebase Auth erfolgreich. User ID:", user.uid);
-                // 4. Vorhandene Berichte aus Firestore laden
-                await displayReportsList();
-            }
-        });
+        // 7. Berichte anzeigen
+        await displayReportsList();
+
+        // 8. Wenn Vault noch gesperrt ist, aber Provider API-Keys braucht: Hinweis
+        updateProviderStatus();
+
+        if (!hasMasterPassword()) {
+            // Erster Start: Setup direkt oeffnen
+            toast.info('Willkommen! Bitte richte ein Master-Passwort ein (mindestens 12 Zeichen).');
+            openUnlockModal(
+                'Master-Passwort einrichten',
+                'Bitte ein Master-Passwort waehlen (mindestens 12 Zeichen). Es schuetzt alle deine API-Keys. WICHTIG: Es kann nicht zurueckgesetzt werden - bei Verlust sind alle Keys geloescht.',
+                true
+            );
+        } else {
+            // Bestehender Nutzer: muss entsperren (Key nicht persistiert - Sicherheitsfeature)
+            openUnlockModal(
+                'Master-Passwort',
+                'Bitte Master-Passwort eingeben, um deine API-Keys zu entsperren.'
+            );
+        }
 
     } catch (err) {
         console.error('Initialisierungsfehler:', err);
+        toast.error('App konnte nicht gestartet werden: ' + err.message);
     }
 });
 
 // ============================================================
-// ABSCHNITT 3: DATENBANK-FUNKTIONEN (Firebase Firestore)
+// ABSCHNITT 3: MIGRATION VON v1 AUF v2
 // ============================================================
+// Uebernimmt den alten Gemini-API-Key aus localStorage (v1)
+// in den neuen verschluesselten Vault (v2).
+// Wird nur beim ersten Start nach dem Update ausgefuehrt.
 
-/**
- * Speichert einen Bericht in der Firestore-Datenbank.
- */
-async function saveReportToDB(report) {
-    if (!currentUser) throw new Error("Nicht eingeloggt");
-    try {
-        const docRef = doc(db, `users/${currentUser.uid}/reports`, report.id.toString());
-        await setDoc(docRef, report);
-    } catch (e) {
-        console.error("Fehler beim Speichern in Firebase:", e);
-        throw e;
+async function migrateV1ToV2() {
+    const LEGACY_GEMINI_KEY = 'gemini_api_key';
+    const oldKey = localStorage.getItem(LEGACY_GEMINI_KEY);
+    const MIGRATION_FLAG = 'v2_migration_done';
+
+    if (!oldKey || localStorage.getItem(MIGRATION_FLAG)) {
+        // Entweder kein alter Key vorhanden, oder Migration schon erledigt
+        return;
     }
-}
 
-/**
- * Holt alle Berichte aus der Firestore-Datenbank.
- * Sortiert nach ID absteigend (neueste zuerst).
- */
-async function getAllReportsFromDB() {
-    if (!currentUser) return [];
-    try {
-        const reportsRef = collection(db, `users/${currentUser.uid}/reports`);
-        const q = query(reportsRef, orderBy("id", "desc"));
-        const querySnapshot = await getDocs(q);
-        
-        const reports = [];
-        querySnapshot.forEach((doc) => {
-            reports.push(doc.data());
-        });
-        return reports;
-    } catch (e) {
-        console.error("Fehler beim Laden aus Firebase:", e);
-        return [];
+    // Migration nur moeglich wenn schon ein Vault existiert und entsperrt ist
+    if (!hasMasterPassword()) {
+        // Wir koennen nicht migrieren bevor der Vault existiert.
+        // Behalte den alten Key erstmal. Setup-Master-Passwort-Flow
+        // wird das abholen.
+        return;
     }
-}
 
-/**
- * Loescht einen Bericht anhand seiner ID aus Firestore.
- */
-async function deleteReportFromDB(id) {
-    if (!currentUser) throw new Error("Nicht eingeloggt");
     try {
-        const docRef = doc(db, `users/${currentUser.uid}/reports`, id.toString());
-        await deleteDoc(docRef);
-    } catch (e) {
-        console.error("Fehler beim Loeschen in Firebase:", e);
-        throw e;
+        if (!isUnlocked()) {
+            // Vault existiert aber gesperrt - User muss erst entsperren
+            // Migration spaeter automatisch nach Entsperren.
+            return;
+        }
+
+        // Key verschluesselt speichern
+        await storeApiKey('gemini', 'gemini_api_key', oldKey);
+
+        // Alten Klartext-Key loeschen (Sicherheit!)
+        localStorage.removeItem(LEGACY_GEMINI_KEY);
+
+        // Migration als erledigt markieren
+        localStorage.setItem(MIGRATION_FLAG, Date.now().toString());
+
+        toast.success('Alter API-Key wurde sicher migriert.');
+    } catch (err) {
+        console.error('Migration fehlgeschlagen:', err);
+        // Bei Fehler bleibt der alte Key erhalten, keine Datenzerstoerung
     }
 }
 
 // ============================================================
-// ABSCHNITT 4: EINSTELLUNGEN-FUNKTIONEN
+// ABSCHNITT 4: EINSTELLUNGEN & PROVIDER-UI
 // ============================================================
 
 /**
- * Laedt die gespeicherten Einstellungen aus dem localStorage.
- * Wenn noch kein API-Key gespeichert ist, oeffnet sich automatisch
- * das Einstellungs-Modal.
+ * Fuellt das Provider-Dropdown mit allen verfuegbaren Anbietern.
  */
-function loadSettings() {
-    // localStorage speichert einfache Text-Werte dauerhaft im Browser
-    const apiKey = localStorage.getItem('gemini_api_key') || '';
-    const template = localStorage.getItem('prompt_template') || 'standard';
+function buildProviderDropdown() {
+    providerSelect.innerHTML = '';
+    getAllProviders().forEach(provider => {
+        const opt = document.createElement('option');
+        opt.value = provider.id;
+        opt.textContent = provider.name + (provider.multiStage ? ' (2-Stage)' : '');
+        providerSelect.appendChild(opt);
+    });
 
-    // Werte in die Eingabefelder schreiben
-    apiKeyInput.value = apiKey;
-    promptSelect.value = template;
+    // Gespeicherte Auswahl laden
+    const savedId = localStorage.getItem(LS_SELECTED_PROVIDER) || getDefaultProvider().id;
+    providerSelect.value = savedId;
+    currentProvider = getProviderById(savedId) || getDefaultProvider();
 
-    // Falls kein API-Key: Einstellungen automatisch oeffnen
-    if (!apiKey) {
-        showModal(settingsModal);
+    updateProviderStatus();
+}
+
+/**
+ * Aktualisiert die provider-spezifischen Eingabefelder (API-Keys).
+ * Wird aufgerufen, wenn der Provider gewechselt wird oder Vault entsperrt.
+ */
+async function refreshApiKeyFields() {
+    apiKeysContainer.innerHTML = '';
+
+    if (!isUnlocked()) {
+        // Vault gesperrt: Hinweis anzeigen
+        const hint = document.createElement('div');
+        hint.className = 'help-text';
+        hint.textContent = 'Bitte Master-Passwort eingeben, um API-Keys zu verwalten.';
+        apiKeysContainer.appendChild(hint);
+        providerHelp.textContent = 'Vault gesperrt.';
+        return;
+    }
+
+    // Fuer jeden benoetigten Key ein Eingabefeld erzeugen
+    const requiredKeys = currentProvider.getRequiredKeys();
+    const savedKeys = await getProviderKeys(currentProvider.id);
+
+    requiredKeys.forEach(k => {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        group.innerHTML = `
+            <label for="key-${k.id}">${k.label}</label>
+            <input type="password" id="key-${k.id}" data-key-id="${k.id}" placeholder="${k.placeholder}" value="${escapeHTML(savedKeys[k.id] || '')}">
+        `;
+        apiKeysContainer.appendChild(group);
+    });
+
+    // Help-Text: Info zum Provider
+    if (currentProvider.multiStage) {
+        providerHelp.textContent = 'Dieser Anbieter nutzt 2 Stufen (Whisper-STT + LLM). Dafuer sind 2 API-Calls noetig.';
+    } else {
+        providerHelp.textContent = '1-Stage: Audio wird direkt verarbeitet (schneller, guenstiger).';
     }
 }
 
 /**
- * Speichert die Einstellungen und schliesst das Modal.
+ * Laedt die allgemeinen Settings (Vorlage, Provider) ins UI.
  */
-function saveSettings() {
-    const apiKey = apiKeyInput.value.trim();
-    const template = promptSelect.value;
+function loadSettingsUI() {
+    promptSelect.value = localStorage.getItem(LS_PROMPT_TEMPLATE) || 'standard';
+    updatePasswordStatus();
+}
 
-    localStorage.setItem('gemini_api_key', apiKey);
-    localStorage.setItem('prompt_template', template);
+/**
+ * Aktualisiert die Sicherheits-Status-Anzeige.
+ */
+function updatePasswordStatus() {
+    if (!hasMasterPassword()) {
+        passwordStatus.innerHTML = '<span class="status-warning">Kein Master-Passwort eingerichtet.</span>';
+        lockVaultBtn.classList.add('hidden');
+    } else if (isUnlocked()) {
+        passwordStatus.innerHTML = '<span class="status-success">Vault entsperrt. Keys sind zugreifbar.</span>';
+        lockVaultBtn.classList.remove('hidden');
+    } else {
+        passwordStatus.innerHTML = '<span class="status-error">Vault gesperrt. Bitte entsperren.</span>';
+        lockVaultBtn.classList.add('hidden');
+    }
+}
 
+/**
+ * Aktualisiert den Status-Badge im Header.
+ */
+function updateProviderStatus() {
+    if (activeProviderBadge) {
+        activeProviderBadge.textContent = currentProvider.name;
+    }
+}
+
+/**
+ * Speichert die Einstellungen: Provider-Auswahl, API-Keys, Vorlage.
+ */
+async function saveSettings() {
+    // 1. Provider-Auswahl speichern
+    const providerId = providerSelect.value;
+    localStorage.setItem(LS_SELECTED_PROVIDER, providerId);
+    currentProvider = getProviderById(providerId);
+
+    // 2. Vorlage speichern
+    localStorage.setItem(LS_PROMPT_TEMPLATE, promptSelect.value);
+
+    // 3. API-Keys speichern (wenn Vault entsperrt)
+    if (isUnlocked()) {
+        const inputs = apiKeysContainer.querySelectorAll('input[data-key-id]');
+        for (const input of inputs) {
+            const keyId = input.dataset.keyId;
+            const value = input.value.trim();
+            if (value) {
+                await storeApiKey(currentProvider.id, keyId, value);
+            }
+        }
+        toast.success('Einstellungen gespeichert.');
+    } else {
+        toast.warning('Provider & Vorlage gespeichert. API-Keys brauchen entsperrten Vault.');
+    }
+
+    updateProviderStatus();
     hideModal(settingsModal);
 
     // Status-Text aktualisieren
-    if (apiKey) {
+    const hasKey = isUnlocked() && await checkCurrentProviderKeys();
+    if (hasKey) {
         statusText.textContent = 'Bereit zum Aufnehmen';
-    } else {
-        statusText.textContent = 'Bitte API-Key in den Einstellungen eintragen';
     }
 }
 
-// Modal oeffnen und schliessen
-function showModal(modalElement) {
-    modalElement.classList.remove('hidden');
+/**
+ * Prueft ob der aktuelle Provider alle noetigen Keys hat.
+ */
+async function checkCurrentProviderKeys() {
+    if (!isUnlocked()) return false;
+    const keys = await getProviderKeys(currentProvider.id);
+    return currentProvider.hasAllRequiredKeys(keys);
 }
 
-function hideModal(modalElement) {
-    modalElement.classList.add('hidden');
-}
-
-// Event-Listeners fuer Modals
-settingsBtn.addEventListener('click', () => showModal(settingsModal));
-closeSettingsBtn.addEventListener('click', () => hideModal(settingsModal));
-saveSettingsBtn.addEventListener('click', saveSettings);
-closeDetailBtn.addEventListener('click', () => hideModal(detailModal));
-
 // ============================================================
-// ABSCHNITT 5: WAKE LOCK (Bildschirm bleibt an)
+// ABSCHNITT 5: VAULT-UI (Master-Passwort)
 // ============================================================
-// Die Wake Lock API verhindert, dass der Bildschirm waehrend
-// der Aufnahme automatisch dunkel wird und sich sperrt.
-// Das ist wichtig, weil iOS das Mikrofon stoppt, wenn der
-// Bildschirm gesperrt wird.
 
 /**
- * Aktiviert den Wake Lock (Bildschirm bleibt an).
- * Falls die API nicht unterstuetzt wird, zeigt es eine Warnung.
+ * Oeffnet das Unlock-Modal mit beliebigem Titel/Hinweis.
+ * @param {string} title    - Titel des Modals
+ * @param {string} hint     - Hinweistext
+ * @param {boolean} isSetup - true = Setup-Modus (mit Bestaetigungsfeld)
  */
+function openUnlockModal(title, hint, isSetup = false) {
+    unlockTitle.textContent = title;
+    unlockHint.textContent = hint;
+    masterPasswordInput.value = '';
+    const confirmInput = document.getElementById('master-password-confirm');
+    const confirmGroup = document.getElementById('password-confirm-group');
+    if (confirmInput) confirmInput.value = '';
+
+    if (isSetup) {
+        confirmGroup.classList.remove('hidden');
+        unlockBtn.textContent = 'Passwort speichern';
+        masterPasswordInput.placeholder = 'Neues Passwort (mindestens 12 Zeichen)';
+    } else {
+        confirmGroup.classList.add('hidden');
+        unlockBtn.textContent = 'Entsperren';
+        masterPasswordInput.placeholder = 'Master-Passwort';
+    }
+
+    showModal(unlockModal);
+    setTimeout(() => masterPasswordInput.focus(), 100);
+}
+
+/**
+ * Behandlung des Unlock-Buttons.
+ * - Wenn kein Vault existiert: Setup-Modus (Passwort neu erstellen)
+ * - Wenn Vault existiert: Entsperren mit vorhandenem Passwort
+ */
+unlockBtn.addEventListener('click', async () => {
+    const password = masterPasswordInput.value;
+    const confirmInput = document.getElementById('master-password-confirm');
+    const confirmGroup = document.getElementById('password-confirm-group');
+    const isSetupMode = !confirmGroup.classList.contains('hidden');
+
+    if (password.length < 12) {
+        toast.error('Passwort muss mindestens 12 Zeichen lang sein.');
+        return;
+    }
+
+    // Bei Setup: Bestaetigung pruefen
+    if (isSetupMode) {
+        const confirmation = confirmInput.value;
+        if (password !== confirmation) {
+            toast.error('Passwoerter stimmen nicht ueberein.');
+            confirmInput.focus();
+            return;
+        }
+    }
+
+    try {
+        if (!hasMasterPassword()) {
+            // Setup-Modus: Neuen Vault erstellen
+            await setupMasterPassword(password);
+            toast.success('Master-Passwort eingerichtet.');
+
+            // Alte v1-Daten migrieren (falls vorhanden)
+            await migrateV1ToV2();
+
+            hideModal(unlockModal);
+            updatePasswordStatus();
+            await refreshApiKeyFields();
+        } else {
+            // Entsperr-Modus
+            const ok = await unlock(password);
+            if (ok) {
+                toast.success('Vault entsperrt.');
+                hideModal(unlockModal);
+                updatePasswordStatus();
+                await refreshApiKeyFields();
+                await migrateV1ToV2();
+            } else {
+                toast.error('Falsches Passwort.');
+                masterPasswordInput.value = '';
+                masterPasswordInput.focus();
+            }
+        }
+    } catch (err) {
+        // Sichere Fehlermeldung: keine internen Details nach aussen
+        console.error('Vault-Fehler:', err.name);
+        toast.error('Aktion fehlgeschlagen. Bitte erneut versuchen.');
+    }
+});
+
+// Enter-Taste im Passwort-Feld loest Unlock aus
+masterPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        // Wenn Setup: ins Bestaetigungsfeld springen, sonst direkt unlock
+        const confirmGroup = document.getElementById('password-confirm-group');
+        if (!confirmGroup.classList.contains('hidden')) {
+            document.getElementById('master-password-confirm').focus();
+        } else {
+            unlockBtn.click();
+        }
+    }
+});
+
+// Enter im Bestaetigungsfeld loest Unlock aus
+const masterPasswordConfirm = document.getElementById('master-password-confirm');
+if (masterPasswordConfirm) {
+    masterPasswordConfirm.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') unlockBtn.click();
+    });
+}
+
+/**
+ * Vault sperren (Logout).
+ */
+lockVaultBtn.addEventListener('click', () => {
+    lock();
+    toast.info('Vault gesperrt.');
+    updatePasswordStatus();
+    refreshApiKeyFields();
+});
+
+/**
+ * Kompletter Reset (Passwort vergessen).
+ */
+resetVaultBtn.addEventListener('click', async () => {
+    if (!confirm('Wirklich alle API-Keys und das Master-Passwort loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden.')) {
+        return;
+    }
+    resetVault();
+    toast.info('Vault zurueckgesetzt. Bitte neues Master-Passwort einrichten.');
+    updatePasswordStatus();
+    openUnlockModal(
+        'Master-Passwort einrichten',
+        'Bitte ein neues Master-Passwort waehlen (mindestens 12 Zeichen).',
+        true
+    );
+});
+
+// ============================================================
+// ABSCHNITT 6: PROVIDER-WECHSEL
+// ============================================================
+
+providerSelect.addEventListener('change', async () => {
+    const newId = providerSelect.value;
+    currentProvider = getProviderById(newId);
+    await refreshApiKeyFields();
+    updateProviderStatus();
+});
+
+// ============================================================
+// ABSCHNITT 7: WAKE LOCK (Bildschirm bleibt an)
+// ============================================================
+
 async function requestWakeLock() {
-    // Pruefen ob die Wake Lock API verfuegbar ist
     if ('wakeLock' in navigator) {
         try {
-            // Wake Lock anfordern — Typ 'screen' = Bildschirm bleibt an
             wakeLock = await navigator.wakeLock.request('screen');
-            console.log('Wake Lock aktiviert — Bildschirm bleibt an');
-
-            // Wenn der Wake Lock aus irgendeinem Grund freigegeben wird
             wakeLock.addEventListener('release', () => {
                 console.log('Wake Lock wurde freigegeben');
             });
         } catch (err) {
-            // Kann passieren wenn z.B. Batterie zu niedrig ist
-            console.warn('Wake Lock konnte nicht aktiviert werden:', err);
+            console.warn('Wake Lock Fehler:', err);
         }
     } else {
-        // Falls die API nicht verfuegbar ist (aeltere Browser)
-        console.warn('Wake Lock API nicht unterstuetzt in diesem Browser');
+        console.warn('Wake Lock API nicht unterstuetzt');
     }
 }
 
-/**
- * Gibt den Wake Lock wieder frei (Bildschirm darf sich wieder sperren).
- */
 async function releaseWakeLock() {
     if (wakeLock !== null) {
         try {
             await wakeLock.release();
             wakeLock = null;
-            console.log('Wake Lock freigegeben');
         } catch (err) {
             console.warn('Fehler beim Freigeben des Wake Lock:', err);
         }
@@ -280,64 +519,49 @@ async function releaseWakeLock() {
 }
 
 // ============================================================
-// ABSCHNITT 6: HINTERGRUND-SCHUTZ (Audio nie verlieren)
+// ABSCHNITT 8: HINTERGRUND-SCHUTZ
 // ============================================================
-// Diese Funktionen sorgen dafuer, dass das aufgenommene Audio
-// NICHT verloren geht, selbst wenn:
-//   - Der Nutzer zu einer anderen App wechselt
-//   - Der Browser geschlossen wird
-//   - iOS das Mikrofon stoppt
 
-/**
- * Richtet alle Schutz-Massnahmen ein.
- * Wird einmal beim App-Start aufgerufen.
- */
 function setupBackgroundProtection() {
-
-    // 1. visibilitychange: Wird ausgeloest, wenn der Nutzer
-    //    zu einer anderen App wechselt oder den Tab verlässt
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden' && isRecording) {
-            // Die App ist im Hintergrund, aber die Aufnahme laeuft noch
-            console.log('App im Hintergrund — Aufnahme wird geschuetzt');
-            // Hinweis: Wir stoppen die Aufnahme NICHT automatisch.
-            // Auf iOS wird das Mikrofon vom System gestoppt.
-            // Der onerror-Handler unten faengt das ab.
+            console.log('App im Hintergrund - Aufnahme geschuetzt');
         }
-
-        // Wenn der Nutzer zurueckkommt, Wake Lock erneuern
         if (document.visibilityState === 'visible' && isRecording) {
             requestWakeLock();
         }
     });
 
-    // 2. beforeunload: Warnung wenn der Nutzer die Seite schliesst
-    //    waehrend eine Aufnahme laeuft
     window.addEventListener('beforeunload', (event) => {
         if (isRecording) {
-            // Standard-Warnung des Browsers anzeigen
             event.preventDefault();
-            // Einige Browser brauchen returnValue (Kompatibilitaet)
             event.returnValue = '';
         }
     });
 }
 
 // ============================================================
-// ABSCHNITT 7: MIKROFON-AUFNAHME (MediaRecorder)
+// ABSCHNITT 9: MIKROFON-AUFNAHME
 // ============================================================
 
-// Klick auf den Aufnahme-Button: Start oder Stopp
-recordBtn.addEventListener('click', () => {
-    // Pruefen ob ein API-Key hinterlegt ist
-    const apiKey = localStorage.getItem('gemini_api_key');
-    if (!apiKey) {
-        alert('Bitte tragen Sie zuerst Ihren Gemini API-Key in den Einstellungen ein.');
-        showModal(settingsModal);
+recordBtn.addEventListener('click', async () => {
+    // Pruefen: Vault entsperrt?
+    if (!isUnlocked()) {
+        toast.warning('Bitte erst Master-Passwort eingeben.');
+        openUnlockModal('Master-Passwort', 'Bitte entsperren, um aufnehmen zu koennen.');
         return;
     }
 
-    // Aufnahme starten oder stoppen (umschalten)
+    // Pruefen: API-Keys fuer aktuellen Provider vorhanden?
+    const hasKeys = await checkCurrentProviderKeys();
+    if (!hasKeys) {
+        toast.warning(`${currentProvider.name} braucht noch API-Keys.`);
+        showModal(settingsModal);
+        await refreshApiKeyFields();
+        return;
+    }
+
+    // Aufnahme starten/stoppen
     if (isRecording) {
         stopAudioRecording();
     } else {
@@ -345,32 +569,17 @@ recordBtn.addEventListener('click', () => {
     }
 });
 
-/**
- * Startet die Mikrofon-Aufnahme.
- *
- * Ablauf:
- * 1. Mikrofon-Berechtigung abfragen
- * 2. Wake Lock aktivieren (Bildschirm bleibt an)
- * 3. MediaRecorder starten
- * 4. Timer starten
- * 5. Hinweis-Banner anzeigen
- */
 async function startAudioRecording() {
-    // Audio-Chunks zuruecksetzen (neuer Start)
     audioChunks = [];
     statusText.textContent = 'Frage Mikrofon-Berechtigung ab...';
 
     try {
-        // 1. Mikrofon-Zugriff anfordern
-        // getUserMedia fragt den Nutzer, ob die App das Mikrofon benutzen darf
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         activeStream = stream;
 
-        // 2. Wake Lock aktivieren — Bildschirm bleibt an
         await requestWakeLock();
 
-        // 3. Audioformat erkennen
-        // iOS Safari unterstuetzt 'audio/mp4', Chrome unterstuetzt 'audio/webm'
+        // Format erkennen (iOS Safari = mp4, Chrome = webm)
         let options = {};
         if (MediaRecorder.isTypeSupported('audio/mp4')) {
             options.mimeType = 'audio/mp4';
@@ -378,500 +587,204 @@ async function startAudioRecording() {
             options.mimeType = 'audio/webm';
         }
 
-        // 4. MediaRecorder erstellen
         mediaRecorder = new MediaRecorder(stream, options);
 
-        // 5. Event: Neue Audio-Daten sind verfuegbar
-        // Wird alle 250ms ausgeloest (timeslice in start())
         mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                audioChunks.push(event.data);
-            }
+            if (event.data.size > 0) audioChunks.push(event.data);
         };
 
-        // 6. Event: Aufnahme wurde gestoppt (normal oder durch Fehler)
         mediaRecorder.onstop = async () => {
-            // Pruefen ob Audio-Daten vorhanden sind
             if (audioChunks.length > 0) {
-                // Audio zusammenfuegen und an Gemini schicken
                 const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-                await processAudioWithGemini(audioBlob);
+                await processAudioWithProvider(audioBlob);
             } else {
                 statusText.textContent = 'Keine Audiodaten aufgenommen.';
             }
-
-            // Mikrofon-Stream stoppen (Akku sparen)
             cleanupStream();
         };
 
-        // 7. Event: Fehler beim Aufnehmen
-        // Das passiert z.B. wenn iOS das Mikrofon im Hintergrund stoppt
         mediaRecorder.onerror = (event) => {
             console.error('MediaRecorder Fehler:', event.error);
-
-            // Aufnahme als beendet markieren
             isRecording = false;
             updateRecordingUI(false);
-
-            // Trotzdem das bisher aufgenommene Audio verarbeiten!
             if (audioChunks.length > 0) {
-                statusText.textContent = 'Aufnahme wurde unterbrochen — verarbeite vorhandenes Audio...';
+                statusText.textContent = 'Aufnahme unterbrochen - verarbeite vorhandenes Audio...';
                 const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/mp4' });
-                processAudioWithGemini(audioBlob);
+                processAudioWithProvider(audioBlob);
             } else {
-                statusText.textContent = 'Aufnahme wurde unterbrochen. Kein Audio vorhanden.';
+                statusText.textContent = 'Aufnahme unterbrochen. Kein Audio vorhanden.';
             }
-
             cleanupStream();
         };
 
-        // 8. Aufnahme starten
-        // timeslice: 250 = alle 250 Millisekunden werden Daten gesammelt
-        // Das bedeutet: Selbst wenn die Aufnahme ploetzlich stoppt,
-        // gehen maximal 250ms Audio verloren
         mediaRecorder.start(250);
         isRecording = true;
-
-        // 9. UI aktualisieren
         updateRecordingUI(true);
         statusText.textContent = 'Aufnahme laeuft...';
 
-        // 10. Timer starten (zeigt vergangene Zeit an)
         startTime = Date.now();
         updateTimer();
         recordTimerInterval = setInterval(updateTimer, 1000);
 
     } catch (err) {
-        console.error('Fehler beim Mikrofonzugriff:', err);
-        statusText.textContent = 'Fehler: Mikrofon-Zugriff verweigert.';
-        alert('Mikrofonzugriff fehlgeschlagen. Bitte erlauben Sie den Zugriff in den iOS-Einstellungen fuer Safari.');
+        console.error('Mikrofonzugriff fehlgeschlagen:', err);
+        statusText.textContent = 'Fehler: Mikrofon verweigert.';
+        toast.error('Mikrofonzugriff abgelehnt. Bitte in iOS-Einstellungen erlauben (Safari).');
         await releaseWakeLock();
     }
 }
 
-/**
- * Stoppt die Mikrofon-Aufnahme.
- */
 async function stopAudioRecording() {
     if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-
-    // MediaRecorder stoppen — loest das 'onstop'-Event aus
     mediaRecorder.stop();
     isRecording = false;
-
-    // UI zuruecksetzen
     updateRecordingUI(false);
     clearInterval(recordTimerInterval);
     timerText.textContent = '00:00';
     statusText.textContent = 'Aufnahme beendet. Verarbeitung gestartet...';
-
-    // Wake Lock freigeben — Bildschirm darf sich wieder sperren
     await releaseWakeLock();
 }
 
-/**
- * Aktualisiert die Benutzeroberflaeche je nach Aufnahme-Status.
- * @param {boolean} recording - true = Aufnahme laeuft, false = gestoppt
- */
 function updateRecordingUI(recording) {
     if (recording) {
-        // Aufnahme laeuft: roter Puls, Stopp-Icon zeigen
         recordBtn.classList.add('recording');
         micIcon.classList.add('hidden');
         stopIcon.classList.remove('hidden');
-        // Hinweis-Banner einblenden
-        if (recordingHint) {
-            recordingHint.classList.remove('hidden');
-        }
+        if (recordingHint) recordingHint.classList.remove('hidden');
     } else {
-        // Aufnahme gestoppt: Mikrofon-Icon zeigen
         recordBtn.classList.remove('recording');
         micIcon.classList.remove('hidden');
         stopIcon.classList.add('hidden');
-        // Hinweis-Banner ausblenden
-        if (recordingHint) {
-            recordingHint.classList.add('hidden');
-        }
+        if (recordingHint) recordingHint.classList.add('hidden');
     }
 }
 
-/**
- * Stoppt den Mikrofon-Stream und raeumt auf.
- */
 function cleanupStream() {
     if (activeStream) {
-        // Alle Tracks des Streams stoppen (gibt das Mikrofon frei)
-        activeStream.getTracks().forEach(track => track.stop());
+        activeStream.getTracks().forEach(t => t.stop());
         activeStream = null;
     }
 }
 
-/**
- * Aktualisiert die Timer-Anzeige (Minuten:Sekunden).
- */
 function updateTimer() {
-    const elapsedMs = Date.now() - startTime;
-    const totalSeconds = Math.floor(elapsedMs / 1000);
-    const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-    timerText.textContent = `${minutes}:${seconds}`;
+    timerText.textContent = formatDuration(Date.now() - startTime);
 }
 
 // ============================================================
-// ABSCHNITT 8: AUDIO-DATEI-IMPORT (Sprachmemos hochladen)
+// ABSCHNITT 10: AUDIO-IMPORT
 // ============================================================
-// Damit kann der Nutzer eine bereits aufgenommene Audio-Datei
-// (z.B. eine Sprachmemo vom iPhone oder von der Apple Watch)
-// direkt hochladen und von Gemini analysieren lassen.
 
-// Klick auf den Import-Button oeffnet den Datei-Waehler
 if (importBtn) {
-    importBtn.addEventListener('click', () => {
-        // Pruefen ob ein API-Key hinterlegt ist
-        const apiKey = localStorage.getItem('gemini_api_key');
-        if (!apiKey) {
-            alert('Bitte tragen Sie zuerst Ihren Gemini API-Key in den Einstellungen ein.');
-            showModal(settingsModal);
+    importBtn.addEventListener('click', async () => {
+        if (!isUnlocked()) {
+            openUnlockModal('Master-Passwort', 'Bitte entsperren, um Import zu nutzen.');
             return;
         }
-        // Datei-Waehler oeffnen
+        const hasKeys = await checkCurrentProviderKeys();
+        if (!hasKeys) {
+            toast.warning(`${currentProvider.name} braucht noch API-Keys.`);
+            showModal(settingsModal);
+            await refreshApiKeyFields();
+            return;
+        }
         audioFileInput.click();
     });
 }
 
-// Wenn eine Datei ausgewaehlt wurde
 if (audioFileInput) {
     audioFileInput.addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Pruefen ob es eine Audio-Datei ist
         if (!file.type.startsWith('audio/')) {
-            alert('Bitte waehlen Sie eine Audio-Datei aus (z.B. .m4a, .mp3, .wav).');
+            toast.error('Bitte eine Audio-Datei waehlen (.m4a, .mp3, .wav).');
             return;
         }
 
-        // Dateigroesse pruefen (Gemini akzeptiert maximal ~20MB inline)
         const maxSizeMB = 20;
         if (file.size > maxSizeMB * 1024 * 1024) {
-            alert(`Die Datei ist zu gross (maximal ${maxSizeMB} MB).`);
+            toast.error(`Datei zu gross (max ${maxSizeMB} MB).`);
             return;
         }
 
         statusText.textContent = `Datei "${file.name}" wird verarbeitet...`;
-
-        // Audio-Datei an Gemini schicken
-        await processAudioWithGemini(file);
-
-        // Datei-Input zuruecksetzen (damit man die gleiche Datei nochmal waehlen kann)
+        await processAudioWithProvider(file);
         audioFileInput.value = '';
     });
 }
 
 // ============================================================
-// ABSCHNITT 9: GEMINI API VERARBEITUNG
+// ABSCHNITT 11: AUDIO-VERARBEITUNG (UEBER PROVIDER)
 // ============================================================
-// Hier wird das aufgenommene oder importierte Audio an die
-// Google Gemini API geschickt. Gemini transkribiert den Ton
-// und erstellt daraus ein strukturiertes Protokoll.
+// Diese Funktion ist die zentrale Stelle: egal welcher Provider
+// aktiv ist, hier laeuft alles zusammen.
 
-/**
- * Sendet eine Audio-Datei (Blob oder File) an die Gemini-API
- * und speichert das Ergebnis als Bericht.
- *
- * @param {Blob|File} audioBlob - Die Audio-Daten (aus Aufnahme oder Import)
- */
-async function processAudioWithGemini(audioBlob) {
-    // Lade-UI einblenden
+async function processAudioWithProvider(audioBlob) {
     loadingContainer.classList.remove('hidden');
-    loadingText.textContent = 'Audio wird fuer die KI vorbereitet...';
+    loadingText.textContent = 'Audio wird vorbereitet...';
     recordBtn.disabled = true;
 
     try {
-        // 1. Audio-Blob in Base64-Text umwandeln
-        // Base64 ist ein Textformat, das Binaerdaten (wie Audio) als Text darstellt
-        const base64Audio = await blobToBase64(audioBlob);
-        const apiKey = localStorage.getItem('gemini_api_key');
-        const template = localStorage.getItem('prompt_template') || 'standard';
-
-        loadingText.textContent = 'Gemini transkribiert und analysiert...';
-
-        // 2. Prompt (Anweisung an die KI) basierend auf der gewaehlten Vorlage
-        const promptText = getPromptForTemplate(template);
-
-        // 3. MIME-Type bestimmen (welches Audioformat es ist)
-        const mimeType = audioBlob.type || 'audio/mp4';
-
-        // 4. API-Anfrage an Google Gemini senden
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            parts: [
-                                {
-                                    // Audio-Daten als Base64
-                                    inlineData: {
-                                        mimeType: mimeType,
-                                        data: base64Audio
-                                    }
-                                },
-                                {
-                                    // Anweisung an die KI
-                                    text: promptText
-                                }
-                            ]
-                        }
-                    ]
-                })
-            }
-        );
-
-        // 5. Fehlerbehandlung fuer die API-Antwort
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error?.message || 'Gemini API Fehler');
+        // 1. API-Keys fuer aktuellen Provider holen
+        const keys = await getProviderKeys(currentProvider.id);
+        if (!currentProvider.hasAllRequiredKeys(keys)) {
+            throw new Error(`Nicht alle API-Keys fuer ${currentProvider.name} gesetzt.`);
         }
 
-        // 6. Antwort auswerten
-        const data = await response.json();
-        let markdownText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        // 2. Vorlage laden
+        const template = localStorage.getItem(LS_PROMPT_TEMPLATE) || 'standard';
 
-        if (!markdownText) {
-            throw new Error('Kein Text von der Gemini-API zurueckgegeben.');
-        }
-
-        // 7. Schweizer Rechtschreibungs-Korrektur (Sicherheitsnetz)
-        // Gemini schreibt manchmal "ß" — das wird automatisch zu "ss" korrigiert
-        markdownText = korrigiereSchweizerRechtschreibung(markdownText);
-
-        // 8. Titel aus dem Markdown extrahieren (erste Ueberschrift)
-        let title = 'Unbenanntes Protokoll';
-        const lines = markdownText.split('\n');
-        for (const line of lines) {
-            if (line.startsWith('#')) {
-                title = line.replace(/[#*]/g, '').trim();
-                break;
-            }
-        }
-
-        // 9. Bericht-Objekt erstellen
-        const timestamp = Date.now();
-        const dateStr = new Date().toLocaleDateString('de-CH', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-
-        const newReport = {
-            id: timestamp,
-            title: title,
-            date: dateStr,
-            content: markdownText
+        // 3. Fortschritts-Callback fuer UI-Updates
+        const onProgress = (msg) => {
+            loadingText.textContent = msg;
         };
 
-        // 10. Bericht in der Datenbank speichern
-        await saveReportToDB(newReport);
+        // 4. Provider aufrufen (hier passiert die Magie)
+        let markdownText = await currentProvider.processAudio(audioBlob, template, keys, onProgress);
 
-        // 11. Liste aktualisieren und Bericht oeffnen
+        // 5. Schweizer Rechtschreibung korrigieren (Sicherheitsnetz)
+        markdownText = korrigiereSchweizerRechtschreibung(markdownText);
+
+        // 6. Titel extrahieren
+        const title = extractTitle(markdownText);
+
+        // 7. Bericht-Objekt bauen
+        const newReport = {
+            id: Date.now(),
+            title: title,
+            date: formatSwissDateTime(),
+            content: markdownText,
+            provider: currentProvider.name,
+            createdAt: Date.now()
+        };
+
+        // 8. In Firestore speichern
+        await saveReport(newReport);
+
+        // 9. UI aktualisieren
         await displayReportsList();
         statusText.textContent = 'Protokoll erfolgreich erstellt!';
+        toast.success('Protokoll erstellt mit ' + currentProvider.name);
         openReportDetail(newReport);
 
     } catch (err) {
         console.error('Verarbeitungsfehler:', err);
         statusText.textContent = 'Verarbeitung fehlgeschlagen.';
-        alert(`Fehler bei der AI-Analyse: ${err.message}`);
+        toast.error('Fehler bei ' + currentProvider.name + ': ' + err.message);
     } finally {
-        // Lade-UI immer ausblenden (auch bei Fehler)
         loadingContainer.classList.add('hidden');
         recordBtn.disabled = false;
     }
 }
 
-/**
- * Gibt den passenden Prompt-Text fuer die gewaehlte Vorlage zurueck.
- *
- * @param {string} template - 'standard', 'detailed' oder 'technical'
- * @returns {string} Der Prompt-Text fuer Gemini
- */
-function getPromptForTemplate(template) {
-    // Gemeinsame Anweisung fuer alle Vorlagen:
-    // Schweizer Rechtschreibung verwenden (ss statt ß, echte Umlaute)
-    const schweizerHinweis = `
-Wichtig: Verwende ausschliesslich Schweizer Rechtschreibung. Das bedeutet: Schreibe immer 'ss' statt 'ß' (kein scharfes S!). Verwende Umlaute (ä, ö, ü) korrekt und keine Ersatzschreibweisen wie 'ae' oder 'ue'.`;
-
-    if (template === 'detailed') {
-        return `Du bist ein professioneller Sekretär für ein Technik-Team. Transkribiere diese Tonaufnahme und erstelle ein ausführliches Protokoll auf Deutsch.
-Halte dich zwingend an folgende Struktur:
-# [Titel des Meetings]
-**Datum:** [Heutiges Datum]
-**Thema:** [Kurze Zusammenfassung des Hauptthemas]
-
-## Zusammenfassung
-[Detaillierte Beschreibung der besprochenen Inhalte]
-
-## Beschlossene Aufgaben (To-Do Liste)
-[Liste alle Aufgaben auf. Nenne immer: Wer macht was bis wann]
-
-## Entscheidungen
-[Wichtige Entscheidungen, die getroffen wurden]
-
-## Risiken und offene Punkte
-[Was muss noch abgeklärt werden? Welche Risiken gibt es?]
-${schweizerHinweis}`;
-    }
-
-    if (template === 'technical') {
-        return `Du bist ein erfahrener Systemtechniker und Protokollführer. Transkribiere die Tonaufnahme und erstelle ein technisches Protokoll.
-Halte dich an folgende Struktur:
-# Technischer Bericht: [Thema]
-**Datum:** [Heutiges Datum]
-
-## Technische Probleme / Diagnose
-[Welche Maschinen oder Software haben Probleme? Was wurde beobachtet?]
-
-## Lösungen und Massnahmen
-[Wie werden die Probleme behoben?]
-
-## Offene Aufgaben
-[Wer muss welches Bauteil bestellen, austauschen oder prüfen? Bis wann?]
-${schweizerHinweis}`;
-    }
-
-    // Standard-Vorlage
-    return `Du bist ein Protokoll-Assistent. Transkribiere diese Tonaufnahme und erstelle eine übersichtliche Zusammenfassung auf Deutsch.
-Nutze diese Struktur:
-# Protokoll: [Thema]
-**Datum:** [Heutiges Datum]
-
-## Wichtigste Punkte
-[Zusammenfassung der wichtigsten Gesprächsinhalte]
-
-## Aufgabenliste (To-Dos)
-[Wer macht was bis wann]
-
-## Nächste Termine
-[Nächste Absprachen oder Deadlines]
-${schweizerHinweis}`;
-}
-
 // ============================================================
-// ABSCHNITT 11: Export & Teilen
+// ABSCHNITT 12: BERICHTE ANZEIGEN
 // ============================================================
 
-// PDF Drucken
-pdfReportBtn.addEventListener('click', () => {
-    // Der Browser oeffnet den nativen Druck-Dialog, 
-    // welcher auf iOS/Mac "Als PDF sichern" erlaubt.
-    // Ein spezielles @media print CSS kuemmert sich um das Layout.
-    window.print();
-});
-
-// Teilen per Web Share API (WhatsApp, E-Mail, AirDrop etc.)
-shareReportBtn.addEventListener('click', async () => {
-    if (!currentActiveReportId) return;
-
-    // Finde den aktuellen Bericht in der UI oder aus der DB
-    // Hier nutzen wir einfach den Text aus dem Modal
-    const title = detailTitle.textContent;
-    const text = detailBodyContent.innerText;
-
-    const shareData = {
-        title: title,
-        text: title + "\n\n" + text,
-    };
-
-    try {
-        if (navigator.share) {
-            await navigator.share(shareData);
-            console.log('Erfolgreich geteilt');
-        } else {
-            // Fallback: mailto Link oeffnen, wenn Share API nicht existiert (Desktop Safari manchmal)
-            const mailtoLink = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(shareData.text)}`;
-            window.location.href = mailtoLink;
-        }
-    } catch (err) {
-        console.error('Fehler beim Teilen:', err);
-    }
-});
-
-// ============================================================
-// ABSCHNITT 12: Hilfsfunktionen
-// ============================================================
-
-/**
- * Wandelt einen Blob (Binaerdaten) in einen Base64-String um.
- * Base64 ist noetig, weil die Gemini-API Audio als Text erwartet.
- *
- * @param {Blob} blob - Die Binaerdaten (Audio)
- * @returns {Promise<string>} Base64-kodierter String (ohne Header)
- */
-function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            // Ergebnis sieht so aus: "data:audio/mp4;base64,XXXX..."
-            // Wir brauchen nur den Teil nach dem Komma (die eigentlichen Daten)
-            const base64String = reader.result;
-            const base64Data = base64String.substring(base64String.indexOf(',') + 1);
-            resolve(base64Data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-}
-
-/**
- * Korrigiert Schweizer Rechtschreibung: ersetzt alle "ß" durch "ss".
- * Gemini schreibt manchmal trotz Anweisung "ß".
- *
- * @param {string} text - Der zu korrigierende Text
- * @returns {string} Text mit "ss" statt "ß"
- */
-function korrigiereSchweizerRechtschreibung(text) {
-    return text.replace(/ß/g, 'ss');
-}
-
-/**
- * Maskiert HTML-Sonderzeichen, um XSS-Angriffe zu verhindern.
- * XSS = Jemand koennte schaedlichen Code in die App einschleusen.
- *
- * @param {string} str - Der zu maskierende String
- * @returns {string} Sicherer String
- */
-function escapeHTML(str) {
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
-// ============================================================
-// ABSCHNITT 11: ANZEIGE- UND INTERAKTIONS-FUNKTIONEN
-// ============================================================
-
-/**
- * Zeigt alle gespeicherten Berichte in der Liste an.
- * Holt die Daten aus IndexedDB und erstellt fuer jeden Bericht
- * ein anklickbares Element.
- */
 async function displayReportsList() {
-    const reports = await getAllReportsFromDB();
-
-    // Liste leeren (alte Eintraege entfernen)
+    const reports = await getAllReports();
     reportsList.innerHTML = '';
 
-    // Leeren Zustand anzeigen wenn keine Berichte vorhanden
     if (reports.length === 0) {
         emptyState.classList.remove('hidden');
         return;
@@ -879,130 +792,108 @@ async function displayReportsList() {
 
     emptyState.classList.add('hidden');
 
-    // Fuer jeden Bericht ein Listenelement erstellen
     reports.forEach(report => {
         const item = document.createElement('div');
         item.className = 'report-item';
+
+        // Provider-Badge fuer den Bericht (falls gespeichert)
+        const providerBadge = report.provider
+            ? `<span class="report-provider">${escapeHTML(report.provider)}</span>`
+            : '';
+
         item.innerHTML = `
             <div class="report-info">
                 <div class="report-title">${escapeHTML(report.title)}</div>
-                <div class="report-meta">${report.date}</div>
+                <div class="report-meta">${escapeHTML(report.date)} ${providerBadge}</div>
             </div>
-            <!-- Pfeil nach rechts SVG -->
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted)"><polyline points="9 18 15 12 9 6"></polyline></svg>
         `;
 
-        // Klick: Bericht oeffnen
         item.addEventListener('click', () => openReportDetail(report));
         reportsList.appendChild(item);
     });
 }
 
-/**
- * Oeffnet die Detailansicht eines Berichts.
- * Rendert den Markdown-Inhalt als HTML.
- */
 function openReportDetail(report) {
     currentActiveReportId = report.id;
     detailTitle.textContent = report.title;
-
-    // Markdown in HTML umwandeln und anzeigen
     detailBodyContent.innerHTML = renderMarkdownToHTML(report.content);
-
     showModal(detailModal);
 }
 
-// Bericht in die Zwischenablage kopieren
+// ============================================================
+// ABSCHNITT 13: EXPORT & TEILEN
+// ============================================================
+
+pdfReportBtn.addEventListener('click', () => {
+    window.print();
+});
+
+shareReportBtn.addEventListener('click', async () => {
+    if (!currentActiveReportId) return;
+    const title = detailTitle.textContent;
+    const text = detailBodyContent.innerText;
+    const shareData = { title, text: title + "\n\n" + text };
+
+    try {
+        if (navigator.share) {
+            await navigator.share(shareData);
+        } else {
+            const mailto = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(shareData.text)}`;
+            window.location.href = mailto;
+        }
+    } catch (err) {
+        console.error('Teilen fehlgeschlagen:', err);
+    }
+});
+
 copyReportBtn.addEventListener('click', async () => {
     if (!currentActiveReportId) return;
-
-    const reports = await getAllReportsFromDB();
+    const reports = await getAllReports();
     const report = reports.find(r => r.id === currentActiveReportId);
-
     if (report) {
         try {
             await navigator.clipboard.writeText(report.content);
-            alert('Protokoll in die Zwischenablage kopiert!');
+            toast.success('In Zwischenablage kopiert.');
         } catch (err) {
             console.error('Kopierfehler:', err);
-            alert('Kopieren fehlgeschlagen.');
+            toast.error('Kopieren fehlgeschlagen.');
         }
     }
 });
 
-// Bericht loeschen
 deleteReportBtn.addEventListener('click', async () => {
     if (!currentActiveReportId) return;
-
-    if (confirm('Moechten Sie dieses Protokoll wirklich loeschen?')) {
-        await deleteReportFromDB(currentActiveReportId);
+    if (!confirm('Dieses Protokoll wirklich loeschen?')) return;
+    try {
+        await deleteReport(currentActiveReportId);
         hideModal(detailModal);
         await displayReportsList();
+        toast.success('Protokoll geloescht.');
+    } catch (err) {
+        toast.error('Loeschen fehlgeschlagen: ' + err.message);
     }
 });
 
 // ============================================================
-// ABSCHNITT 12: EINFACHER MARKDOWN-PARSER
+// ABSCHNITT 14: MODAL-HILFSFUNKTIONEN & EVENTS
 // ============================================================
-// Wandelt Markdown-Text in HTML um, damit er im Browser
-// schoen formatiert angezeigt werden kann.
-// Unterstuetzt: Ueberschriften, Listen, Checkboxen, Fettdruck.
 
-/**
- * Wandelt Markdown-Text in HTML um.
- *
- * @param {string} markdown - Der Markdown-Text
- * @returns {string} HTML-String
- */
-function renderMarkdownToHTML(markdown) {
-    // Zuerst HTML-Tags maskieren (Sicherheit gegen XSS)
-    let html = escapeHTML(markdown);
+function showModal(m) { m.classList.remove('hidden'); }
+function hideModal(m) { m.classList.add('hidden'); }
 
-    // Zeile fuer Zeile verarbeiten
-    const lines = html.split('\n');
+settingsBtn.addEventListener('click', async () => {
+    showModal(settingsModal);
+    await refreshApiKeyFields();
+    updatePasswordStatus();
+});
+closeSettingsBtn.addEventListener('click', () => hideModal(settingsModal));
+saveSettingsBtn.addEventListener('click', saveSettings);
+closeDetailBtn.addEventListener('click', () => hideModal(detailModal));
 
-    const renderedLines = lines.map(line => {
-        let trimmed = line.trim();
-
-        // Ueberschriften erkennen (### vor ## vor #)
-        if (trimmed.startsWith('### ')) {
-            return `<h3>${trimmed.substring(4)}</h3>`;
-        }
-        if (trimmed.startsWith('## ')) {
-            return `<h2>${trimmed.substring(3)}</h2>`;
-        }
-        if (trimmed.startsWith('# ')) {
-            return `<h1>${trimmed.substring(2)}</h1>`;
-        }
-
-        // Checkboxen erkennen (To-Do-Listen)
-        const openCheckboxMatch = trimmed.match(/^[-*]\s+\[\s*\]\s+(.*)/);
-        if (openCheckboxMatch) {
-            return `<li><input type="checkbox" disabled> ${openCheckboxMatch[1]}</li>`;
-        }
-        const checkedCheckboxMatch = trimmed.match(/^[-*]\s+\[x\]\s+(.*)/i);
-        if (checkedCheckboxMatch) {
-            return `<li><input type="checkbox" checked disabled> ${checkedCheckboxMatch[1]}</li>`;
-        }
-
-        // Listenpunkte erkennen
-        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-            return `<li>${trimmed.substring(2)}</li>`;
-        }
-
-        // Leere Zeile = Absatz
-        if (trimmed === '') {
-            return '<br>';
-        }
-
-        // Normaler Text
-        return trimmed;
+// Klick auf Modal-Hintergrund schliesst das Modal (nicht aber das Unlock-Modal!)
+[settingsModal, detailModal].forEach(modal => {
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) hideModal(modal);
     });
-
-    html = renderedLines.join('\n');
-
-    // Fett-Formatierung: **text** wird zu <strong>text</strong>
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-    return html;
-}
+});

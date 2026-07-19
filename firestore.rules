@@ -2,17 +2,46 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Make sure users can only access their own data
+
+    // ==============================
+    // DEFAULT-DENY: Alles verboten was nicht explizit erlaubt ist.
+    // ==============================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==============================
+    // USER-DATEN: Nur der eigene User darf seine Daten sehen.
+    // Schema-Validierung: nur erwartete Felder, beschraenkte Groesse.
+    // ==============================
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow access to subcollections
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+
+      // --- Berichte (Meeting-Protokolle) ---
       match /reports/{reportId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, delete: if request.auth != null
+                            && request.auth.uid == userId;
+
+        allow create, update: if request.auth != null
+                              && request.auth.uid == userId
+                              // Schema pruefen: nur erlaubte Felder
+                              && request.resource.data.keys().hasAll(['id', 'title', 'date', 'content'])
+                              && request.resource.data.keys().hasOnly(['id', 'title', 'date', 'content', 'provider', 'createdAt'])
+                              // Typen pruefen
+                              && request.resource.data.id is int
+                              && request.resource.data.title is string
+                              && request.resource.data.date is string
+                              && request.resource.data.content is string
+                              // Groessen beschraenken (Schutz vor Missbrauch)
+                              && request.resource.data.title.size() < 200
+                              && request.resource.data.content.size() < 50000;  // max 50KB Text
       }
-      
+
+      // --- Todos (zukuenftiges Feature, Platzhalter) ---
       match /todos/{todoId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth != null
+                           && request.auth.uid == userId;
       }
     }
   }
