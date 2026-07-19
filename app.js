@@ -1,5 +1,6 @@
 // ============================================================
 // ASETRONICS MEETING-MINUTEN AI — Haupt-Logik (app.js)
+import { db, auth, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, orderBy, signInAnonymously, onAuthStateChanged } from './firebase-config.js';
 // ============================================================
 // Diese Datei steuert:
 //   1. IndexedDB-Datenbank (Berichte speichern, laden, loeschen)
@@ -14,12 +15,12 @@
 // ABSCHNITT 0: Konstanten und globale Variablen
 // ============================================================
 
-// Name der IndexedDB-Datenbank und ihre Version
+// Name der Datenbank (nur fuer Doku, Firebase verwaltet das)
 const DB_NAME = 'AsetronicsMeetingDB';
 const DB_VERSION = 1;
 
-// Referenz auf die geoeffnete Datenbank
-let db;
+// Firebase User
+let currentUser = null;
 
 // Der MediaRecorder nimmt Audio auf
 let mediaRecorder;
@@ -91,17 +92,23 @@ let currentActiveReportId = null;
 // Wenn die Seite vollstaendig geladen ist, wird die App initialisiert
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // 1. Datenbank oeffnen (oder erstellen, falls sie noch nicht existiert)
-        await initDatabase();
-
-        // 2. Gespeicherte Einstellungen laden (API-Key, Vorlage)
+        // 1. Gespeicherte Einstellungen laden (API-Key, Vorlage)
         loadSettings();
 
-        // 3. Vorhandene Berichte in der Liste anzeigen
-        await displayReportsList();
-
-        // 4. Hintergrund-Schutz einrichten (Audio sichern bei Unterbrechung)
+        // 2. Hintergrund-Schutz einrichten (Audio sichern bei Unterbrechung)
         setupBackgroundProtection();
+
+        // 3. Firebase Auth: Anonym einloggen, damit Daten geschuetzt sind
+        await signInAnonymously(auth);
+        
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                console.log("Firebase Auth erfolgreich. User ID:", user.uid);
+                // 4. Vorhandene Berichte aus Firestore laden
+                await displayReportsList();
+            }
+        });
 
     } catch (err) {
         console.error('Initialisierungsfehler:', err);
@@ -109,89 +116,57 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ============================================================
-// ABSCHNITT 3: DATENBANK-FUNKTIONEN (IndexedDB)
+// ABSCHNITT 3: DATENBANK-FUNKTIONEN (Firebase Firestore)
 // ============================================================
-// IndexedDB ist eine Browser-Datenbank, die direkt auf dem Geraet
-// (iPhone/Mac) laeuft. Die Daten bleiben auch nach dem Schliessen
-// des Browsers erhalten.
 
 /**
- * Oeffnet die IndexedDB-Datenbank.
- * Erstellt den "reports"-Speicher, falls er noch nicht existiert.
+ * Speichert einen Bericht in der Firestore-Datenbank.
  */
-function initDatabase() {
-    return new Promise((resolve, reject) => {
-        // Datenbank oeffnen (Name + Version)
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-        // Falls die Datenbank zum ersten Mal erstellt wird:
-        request.onupgradeneeded = (event) => {
-            const dbInstance = event.target.result;
-            // "reports" ist der Speicherplatz fuer alle Protokolle
-            if (!dbInstance.objectStoreNames.contains('reports')) {
-                dbInstance.createObjectStore('reports', { keyPath: 'id' });
-            }
-        };
-
-        // Datenbank erfolgreich geoeffnet
-        request.onsuccess = (event) => {
-            db = event.target.result;
-            resolve(db);
-        };
-
-        // Fehler beim Oeffnen
-        request.onerror = (event) => {
-            reject(event.target.error);
-        };
-    });
+async function saveReportToDB(report) {
+    if (!currentUser) throw new Error("Nicht eingeloggt");
+    try {
+        const docRef = doc(db, `users/${currentUser.uid}/reports`, report.id.toString());
+        await setDoc(docRef, report);
+    } catch (e) {
+        console.error("Fehler beim Speichern in Firebase:", e);
+        throw e;
+    }
 }
 
 /**
- * Speichert einen Bericht in der Datenbank.
- * Falls ein Bericht mit der gleichen ID existiert, wird er ueberschrieben.
- */
-function saveReportToDB(report) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['reports'], 'readwrite');
-        const store = transaction.objectStore('reports');
-        const request = store.put(report);
-
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-}
-
-/**
- * Holt alle Berichte aus der Datenbank.
+ * Holt alle Berichte aus der Firestore-Datenbank.
  * Sortiert nach ID absteigend (neueste zuerst).
  */
-function getAllReportsFromDB() {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['reports'], 'readonly');
-        const store = transaction.objectStore('reports');
-        const request = store.getAll();
-
-        request.onsuccess = () => {
-            // Sortieren: neueste Berichte zuerst (hoechste ID = neuester)
-            const sorted = request.result.sort((a, b) => b.id - a.id);
-            resolve(sorted);
-        };
-        request.onerror = () => reject(request.error);
-    });
+async function getAllReportsFromDB() {
+    if (!currentUser) return [];
+    try {
+        const reportsRef = collection(db, `users/${currentUser.uid}/reports`);
+        const q = query(reportsRef, orderBy("id", "desc"));
+        const querySnapshot = await getDocs(q);
+        
+        const reports = [];
+        querySnapshot.forEach((doc) => {
+            reports.push(doc.data());
+        });
+        return reports;
+    } catch (e) {
+        console.error("Fehler beim Laden aus Firebase:", e);
+        return [];
+    }
 }
 
 /**
- * Loescht einen Bericht anhand seiner ID.
+ * Loescht einen Bericht anhand seiner ID aus Firestore.
  */
-function deleteReportFromDB(id) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['reports'], 'readwrite');
-        const store = transaction.objectStore('reports');
-        const request = store.delete(id);
-
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
+async function deleteReportFromDB(id) {
+    if (!currentUser) throw new Error("Nicht eingeloggt");
+    try {
+        const docRef = doc(db, `users/${currentUser.uid}/reports`, id.toString());
+        await deleteDoc(docRef);
+    } catch (e) {
+        console.error("Fehler beim Loeschen in Firebase:", e);
+        throw e;
+    }
 }
 
 // ============================================================
