@@ -4,23 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Asetronics Meeting-Minuten AI</title>
-    
+
     <!-- SEO Meta Tags -->
-    <meta name="description" content="KI-gestuetzte Meeting-Protokolle fuer Asetronics AG. Aufnehmen, transkribieren und strukturieren mit Gemini AI.">
-    
+    <meta name="description" content="KI-gestuetzte Meeting-Protokolle fuer Asetronics AG. Aufnehmen, transkribieren und strukturieren mit verschiedenen KI-Anbietern.">
+
     <!-- PWA-Unterstuetzung fuer iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Meeting AI">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.json">
-    
+
     <!-- Schriftart von Google Fonts (Outfit: modern und gut lesbar) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- CSS Stylesheet -->
+
+    <!-- CSS Stylesheets -->
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="print.css" media="print">
 </head>
@@ -34,10 +34,14 @@
                 <span class="logo-brand">Asetronics</span>
                 <span class="logo-title">Meeting AI</span>
             </div>
-            <button id="settings-btn" class="icon-button" title="Einstellungen">
-                <!-- Zahnrad-Icon (SVG) -->
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            </button>
+            <div class="header-actions">
+                <!-- Aktiver Provider wird angezeigt -->
+                <span id="active-provider-badge" class="provider-badge" title="Aktiver KI-Anbieter">Gemini</span>
+                <button id="settings-btn" class="icon-button" title="Einstellungen">
+                    <!-- Zahnrad-Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+            </div>
         </header>
 
         <!-- ============================== -->
@@ -48,7 +52,7 @@
             <section class="recorder-section card">
                 <div class="recorder-status" id="record-status">Bereit zum Aufnehmen</div>
                 <div class="timer" id="record-timer">00:00</div>
-                
+
                 <!-- Aufnahme-Knopf mit Puls-Animation -->
                 <div class="recorder-control">
                     <div class="pulse-ring" id="pulse-ring"></div>
@@ -62,7 +66,6 @@
 
                 <!-- Hinweis-Banner: Wird waehrend der Aufnahme angezeigt -->
                 <div class="recording-hint hidden" id="recording-hint">
-                    <!-- Info-Icon -->
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
                     <span>Bildschirm bleibt an waehrend der Aufnahme</span>
                 </div>
@@ -70,15 +73,13 @@
                 <!-- Audio-Datei importieren -->
                 <div class="import-area">
                     <button id="import-btn" class="secondary-button">
-                        <!-- Upload-Icon -->
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                         <span>Audio-Datei importieren</span>
                     </button>
-                    <!-- Verstecktes Datei-Input (wird per JS geoeffnet) -->
                     <input type="file" id="audio-file-input" accept="audio/*" class="hidden">
                 </div>
-                
-                <!-- API-Ladestatus -->
+
+                <!-- API-Ladestatus mit Fortschrittstext -->
                 <div class="loading-container hidden" id="loading-container">
                     <div class="spinner"></div>
                     <div class="loading-text" id="loading-text">Gemini analysiert das Meeting...</div>
@@ -89,7 +90,6 @@
             <section class="history-section">
                 <h2 class="section-title">Letzte Protokolle</h2>
                 <div class="reports-list" id="reports-list">
-                    <!-- Platzhalter wenn noch keine Berichte vorhanden sind -->
                     <div class="empty-state" id="empty-state">
                         <p>Noch keine Protokolle vorhanden.</p>
                         <p class="subtitle">Nehmen Sie Ihr erstes Meeting auf, um ein Protokoll zu erstellen.</p>
@@ -108,20 +108,63 @@
                     <button id="close-settings-btn" class="close-button">&times;</button>
                 </div>
                 <div class="modal-body">
+                    <!-- Provider-Auswahl (KI-Anbieter) -->
                     <div class="form-group">
-                        <label for="api-key-input">Gemini API Key</label>
-                        <input type="password" id="api-key-input" placeholder="AIzaSy...">
-                        <p class="help-text">Ihr API-Key wird nur lokal auf Ihrem Geraet gespeichert.</p>
+                        <label for="provider-select">KI-Anbieter</label>
+                        <select id="provider-select">
+                            <!-- Optionen werden von app.js dynamisch gefuellt -->
+                        </select>
+                        <p class="help-text" id="provider-help">Waehle, welcher KI-Dienst die Protokolle erstellen soll.</p>
                     </div>
+
+                    <!-- Container fuer Provider-Key-Eingaben (dynamisch) -->
+                    <div id="api-keys-container">
+                        <!-- API-Key-Eingabefelder werden von app.js hier eingefuegt -->
+                    </div>
+
+                    <!-- Analyse-Vorlage -->
                     <div class="form-group">
                         <label for="prompt-select">Analyse-Vorlage</label>
                         <select id="prompt-select">
-                            <option value="standard">Standard (Zusammenfassung & Aufgaben)</option>
-                            <option value="detailed">Ausfuehrlich (inkl. Risiken & Details)</option>
-                            <option value="technical">Technisch (Fokus auf Fehler & Loesungen)</option>
+                            <option value="standard">Standard (Zusammenfassung &amp; Aufgaben)</option>
+                            <option value="detailed">Ausfuehrlich (inkl. Risiken &amp; Details)</option>
+                            <option value="technical">Technisch (Fokus auf Fehler &amp; Loesungen)</option>
                         </select>
                     </div>
+
+                    <!-- Master-Passwort-Bereich (Sicherheit) -->
+                    <div class="form-group master-password-group">
+                        <label>Sicherheit</label>
+                        <div id="password-status" class="password-status">
+                            <!-- Status wird von app.js hier gesetzt -->
+                        </div>
+                        <button id="lock-vault-btn" class="secondary-button hidden">Vault sperren</button>
+                        <button id="reset-vault-btn" class="danger-button">Alle Keys &amp; Passwort zuruecksetzen</button>
+                    </div>
+
                     <button id="save-settings-btn" class="primary-button">Speichern</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================== -->
+        <!-- VAULT-ENTSPERREN-MODAL         -->
+        <!-- ============================== -->
+        <div id="unlock-modal" class="modal hidden">
+            <div class="modal-content card small-modal">
+                <div class="modal-header">
+                    <h2 id="unlock-title">Master-Passwort</h2>
+                </div>
+                <div class="modal-body">
+                    <p id="unlock-hint" class="help-text">Bitte Master-Passwort eingeben, um API-Keys zu entsperren.</p>
+                    <div class="form-group">
+                        <input type="password" id="master-password-input" placeholder="Master-Passwort (mindestens 12 Zeichen)">
+                    </div>
+                    <!-- Bestaetigungsfeld: nur beim Setup sichtbar -->
+                    <div class="form-group hidden" id="password-confirm-group">
+                        <input type="password" id="master-password-confirm" placeholder="Passwort wiederholen">
+                    </div>
+                    <button id="unlock-btn" class="primary-button">Entsperren</button>
                 </div>
             </div>
         </div>
@@ -135,19 +178,15 @@
                     <h2 id="detail-title">Protokoll Details</h2>
                     <div class="detail-actions">
                         <button id="share-report-btn" class="icon-button-small" title="Teilen">
-                            <!-- Teilen-Icon -->
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
                         </button>
                         <button id="pdf-report-btn" class="icon-button-small" title="Als PDF drucken">
-                            <!-- PDF/Drucken-Icon -->
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                         </button>
                         <button id="copy-report-btn" class="icon-button-small" title="Kopieren">
-                            <!-- Kopieren-Icon -->
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         </button>
                         <button id="delete-report-btn" class="icon-button-small danger" title="Loeschen">
-                            <!-- Papierkorb-Icon -->
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                         </button>
                         <button id="close-detail-btn" class="close-button">&times;</button>
@@ -170,7 +209,7 @@
             });
         }
     </script>
-    
+
     <!-- App-Logik -->
     <script type="module" src="app.js"></script>
 </body>

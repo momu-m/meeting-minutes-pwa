@@ -1,94 +1,123 @@
 // ============================================================
-// SERVICE WORKER — Asetronics Meeting-Minuten AI
+// SERVICE WORKER v3 — Asetronics Meeting-Minuten AI v2.0
 // ============================================================
-// Der Service Worker laeuft im Hintergrund und sorgt fuer:
-//   1. Offline-Faehigkeit: App-Dateien werden zwischengespeichert
-//   2. Schnelles Laden: Gecachte Dateien werden sofort angezeigt
-//   3. PWA-Funktionalitaet: Noetig fuer die Installation auf dem Homescreen
+// Cache-Version v3: inkl. neue Provider- und Service-Module.
+//
+// Neue Dateien in v3:
+//   - providers/*.js (8 Module)
+//   - services/*.js (4 Module)
+//   - utils/*.js (3 Module)
 // ============================================================
 
-// Cache-Name mit Versionsnummer
-// WICHTIG: Bei jeder Aenderung an den App-Dateien muss die Version
-// erhoeht werden (z.B. v2 → v3), damit der Browser die neuen Dateien laedt
-const CACHE_NAME = 'asetronics-meeting-ai-v2';
+// Cache-Version - bei jeder Code-Aenderung erhoehen!
+const CACHE_NAME = 'asetronics-meeting-ai-v3';
 
-// Liste der Dateien, die gecacht (zwischengespeichert) werden sollen
+// Liste aller Dateien, die fuer Offline-Modus gecacht werden
 const ASSETS = [
+    './',
     './index.html',
     './styles.css',
+    './print.css',
     './app.js',
+    './firebase-config.js',
     './manifest.json',
     './icon-192.png',
-    './icon-512.png'
+    './icon-512.png',
+    // Provider-Module
+    './providers/base.js',
+    './providers/gemini.js',
+    './providers/openai.js',
+    './providers/anthropic.js',
+    './providers/ollama.js',
+    './providers/minimax.js',
+    './providers/glm.js',
+    './providers/nvidia.js',
+    // Service-Module
+    './services/crypto.js',
+    './services/keyvault.js',
+    './services/db.js',
+    './services/notify.js',
+    // Utils
+    './utils/markdown.js',
+    './utils/format.js',
+    './utils/prompts.js'
 ];
 
 // ============================================================
 // INSTALLATION
 // ============================================================
-// Wird einmal ausgeloest, wenn der Service Worker zum ersten Mal
-// registriert wird oder wenn sich die Version aendert.
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        // Cache oeffnen und alle App-Dateien speichern
         caches.open(CACHE_NAME)
             .then((cache) => {
-                return cache.addAll(ASSETS);
+                // addAll schlaegt fehl wenn eine Datei fehlt - deshalb
+                // nutzen wir fuer jede Datei einzeln add (mit Catch)
+                return Promise.all(
+                    ASSETS.map(url =>
+                        cache.add(url).catch(err =>
+                            console.warn('Konnte nicht cachen:', url, err)
+                        )
+                    )
+                );
             })
-            .then(() => {
-                // Sofort aktivieren (nicht auf andere Tabs warten)
-                return self.skipWaiting();
-            })
+            .then(() => self.skipWaiting())
     );
 });
 
 // ============================================================
-// AKTIVIERUNG
+// AKTIVIERUNG - alte Caches loeschen
 // ============================================================
-// Wird nach der Installation ausgeloest.
-// Hier werden alte Caches geloescht (Aufraeumen).
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        // Alle vorhandenen Caches durchgehen
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cache) => {
-                    // Alte Caches loeschen (alles ausser dem aktuellen)
                     if (cache !== CACHE_NAME) {
+                        console.log('Loesche alten Cache:', cache);
                         return caches.delete(cache);
                     }
                 })
             );
-        }).then(() => {
-            // Kontrolle ueber alle offenen Tabs uebernehmen
-            return self.clients.claim();
-        })
+        }).then(() => self.clients.claim())
     );
 });
 
 // ============================================================
-// FETCH-STRATEGIE: Cache-First
+// FETCH-STRATEGIE: Cache-First, Network-Fallback
 // ============================================================
-// Bei jeder Netzwerkanfrage:
-//   1. Zuerst im Cache nachschauen
-//   2. Wenn nicht im Cache: aus dem Netzwerk laden
-//
-// Ausnahme: API-Anfragen (z.B. an Google Gemini) werden
-// NICHT gecacht, weil sie immer aktuell sein muessen.
+// Ausnahmen:
+//   - API-Aufrufe (Google, OpenAI, Anthropic, etc.) nie cachen
+//   - Firebase-Ressourcen immer aus dem Netz
 self.addEventListener('fetch', (event) => {
-    // API-Aufrufe nicht cachen (z.B. an Google Gemini)
-    if (event.request.url.includes('googleapis.com')) {
-        return;
+    const url = event.request.url;
+
+    // API-Calls und Firebase nie cachen
+    const NEVER_CACHE = [
+        'googleapis.com',
+        'api.openai.com',
+        'api.anthropic.com',
+        'api.ollama.com',
+        'api.minimaxi.com',
+        'open.bigmodel.cn',
+        'integrate.api.nvidia.com',
+        'firestore.googleapis.com',
+        'firebase'
+    ];
+
+    if (NEVER_CACHE.some(host => url.includes(host))) {
+        return;  // Immer ans Netz weiterleiten
     }
 
     event.respondWith(
         caches.match(event.request)
             .then((cachedResponse) => {
-                // Wenn die Datei im Cache ist: sofort zurueckgeben
-                if (cachedResponse) {
-                    return cachedResponse;
-                }
-                // Sonst: aus dem Netzwerk laden
-                return fetch(event.request);
+                if (cachedResponse) return cachedResponse;
+                return fetch(event.request).catch(() => {
+                    // Wenn beides fehlschlaegt (offline): index.html als Fallback
+                    if (event.request.mode === 'navigate') {
+                        return caches.match('./index.html');
+                    }
+                });
             })
     );
 });

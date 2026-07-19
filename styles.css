@@ -638,3 +638,272 @@ body {
 .hidden {
     display: none !important;
 }
+
+/* ============================================================
+   v2.0 NEUE ELEMENTE - Multi-Provider & Sicherheit
+   ============================================================ */
+
+/* Header-Aktionen (Provider-Badge + Zahnrad nebeneinander) */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Provider-Badge im Header (kleines Pillchen) */
+.provider-badge {
+    display: inline-block;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-glass);
+    color: var(--text-muted);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Provider-Badge im Bericht (klein, grau) */
+.report-provider {
+    display: inline-block;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-color);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    margin-left: 6px;
+    font-weight: 500;
+}
+
+/* ============================================================
+   TOAST-NOTIFICATIONS
+   ============================================================ */
+/* Container am unteren Bildschirmrand */
+.toast-container {
+    position: fixed;
+    bottom: max(20px, env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    width: 90%;
+    max-width: 420px;
+}
+
+/* Einzelner Toast */
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-main);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: auto;
+    border-left: 3px solid transparent;
+}
+
+/* Toast sichtbar */
+.toast-show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Toast-Icon (rund) */
+.toast-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+    font-weight: bold;
+}
+
+/* Erfolgs-Toast (gruen) */
+.toast-success {
+    background: rgba(16, 185, 129, 0.15);
+    border-left-color: var(--success-color);
+}
+.toast-success .toast-icon {
+    background: var(--success-color);
+    color: white;
+}
+
+/* Fehler-Toast (rot) */
+.toast-error {
+    background: rgba(239, 68, 68, 0.15);
+    border-left-color: var(--danger-color);
+}
+.toast-error .toast-icon {
+    background: var(--danger-color);
+    color: white;
+}
+
+/* Info-Toast (blau) */
+.toast-info {
+    background: rgba(59, 130, 246, 0.15);
+    border-left-color: var(--accent-color);
+}
+.toast-info .toast-icon {
+    background: var(--accent-color);
+    color: white;
+}
+
+/* Warnungs-Toast (orange) */
+.toast-warning {
+    background: rgba(245, 158, 11, 0.15);
+    border-left-color: var(--warning-color);
+}
+.toast-warning .toast-icon {
+    background: var(--warning-color);
+    color: white;
+}
+
+/* ============================================================
+   SECURITY-STATUS (Master-Passwort-Bereich)
+   ============================================================ */
+
+.master-password-group {
+    border-top: 1px solid var(--border-glass);
+    padding-top: 16px;
+    margin-top: 8px;
+}
+
+.password-status {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 13px;
+}
+
+.status-success {
+    color: var(--success-color);
+}
+
+.status-warning {
+    color: var(--warning-color);
+}
+
+.status-error {
+    color: var(--danger-color);
+}
+
+/* Danger-Button (Reset) - dezentes Rot */
+.danger-button {
+    width: 100%;
+    padding: 10px;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    margin-top: 6px;
+}
+
+.danger-button:hover, .danger-button:active {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: var(--danger-color);
+}
+
+/* Kleines Modal (fuer Passwort-Eingabe) */
+.small-modal {
+    max-width: 360px;
+    text-align: center;
+}
+
+.small-modal .primary-button {
+    margin-top: 8px;
+}
+
+/* ============================================================
+   VERBESSERTE MARKDOWN-ANZEIGE
+   ============================================================ */
+
+.detail-body ul.todo-list {
+    list-style: none;
+    padding-left: 4px;
+}
+
+.detail-body ul.todo-list li {
+    margin-left: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.detail-body blockquote {
+    border-left: 3px solid var(--accent-color);
+    padding-left: 12px;
+    margin: 8px 0;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.detail-body code {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Monaco', monospace;
+    font-size: 13px;
+}
+
+.detail-body p {
+    margin: 6px 0;
+}
+
+/* ============================================================
+   FORM-VERBESSERUNGEN
+   ============================================================ */
+
+.form-group select {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg-secondary);
+    color: var(--text-main);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 14px;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+    cursor: pointer;
+}
+
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.help-text {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    line-height: 1.4;
+}
