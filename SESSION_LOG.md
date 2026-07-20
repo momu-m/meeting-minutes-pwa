@@ -8,73 +8,150 @@
 
 ---
 
-## Letzte Session: 20. Juli 2026 (Mo mit ZCode)
+## Letzte Sessions: 19. und 20. Juli 2026 (Mo mit ZCode)
 
-### Was wir gemacht haben
+### Uebersicht der gesamten Entwicklung
 
-#### Phase 1: Architektur (v2.0)
-Die App wurde von einer einfachen Gemini-Only-PWA zu einer **Multi-Provider-Architektur** umgebaut:
-
-- **Provider-Adapter-Pattern** eingefuehrt (`providers/base.js` als Interface)
-- **7 KI-Anbieter** implementiert, frei umschaltbar:
-  - Gemini (1-Stage, Audio direkt)
-  - OpenAI (Whisper + GPT-4o-mini)
-  - Anthropic Claude (Whisper + Claude)
-  - Ollama Cloud
-  - MiniMax
-  - GLM/ZhipuAI
-  - NVIDIA NIM
-- **Sicherheit:** AES-GCM 256 Verschluesselung aller API-Keys mit Master-Passwort
-  - PBKDF2 600.000 Iterationen (OWASP 2023)
-  - Master-Passwort min. 12 Zeichen mit Bestaetigungsfeld
-  - AES-Key NUR im RAM (kein sessionStorage - XSS-Schutz)
-- **Migration v1 -> v2:** Alter Gemini-Key wurde automatisch verschluesselt uebernommen
-
-#### Phase 2: Features (v2.1)
-- **Editierbare Protokolle:** Titel + Markdown-Inhalt editierbar, Update via Firestore
-- **DOCX-Export:** Echte Word-Datei ueber dynamisch geladene docx-Bibliothek
-- **Audio-Wiedergabe:** Player im Detail-Modal, Audio in IndexedDB gespeichert
-- **Suche/Filter:** Live-Suche durch Titel, Inhalt, Datum, Provider
-
-#### Phase 3: Security-Audit + Fixes (v2.1.1)
-Audit hat 3 P0-Probleme gefunden, alle behoben:
-- `lastEdited` fehlte in Firestore-Rules -> ergaenzt
-- `SESSION_KEY` ReferenceError in `resetVault()` -> bereinigt
-- DOCX-CDN-Ausfall hat ganze App blockiert -> dynamischer Import
-- jsdelivr/unpkg zu `NEVER_CACHE` hinzugefuegt
-
-#### Phase 4: Deployment
-- App ist **LIVE** auf GitHub Pages: https://momu-m.github.io/meeting-minutes-pwa/
-- Backup-Tags: `v1.0-stable`, `v2.0`, `v2.1`, `v2.1.1`
-
-### Commit-Historie dieser Session
 ```
-3583de2 docs: STATUS.md aktualisiert auf v2.1.1 (produktionsklar)
-bc5cc63 fix(v2.1.1): Security-Audit P0 Fixes
-86c6101 feat(v2.1): Suche und Filter in Berichts-Liste
-126b85b feat(v2.1): Audio-Wiedergabe im Detail-Modal
-47e9523 feat(v2.1): DOCX-Export (Word-Datei)
-0650e19 feat(v2.1): Editierbare Protokolle
-7b5d647 Merge: v2.0 Multi-Provider-Architektur mit Security-Hardening
-a408fa8 feat: v2.0 Multi-Provider-Architektur mit 7 KI-Anbietern
+v1.0 (vor Refactoring)     - Gemini-only Basis-PWA
+  |
+  v2.0 (19.07.2026)        - Multi-Provider-Architektur (7 KI-Anbieter)
+  |                         + AES-GCM Security
+  v2.1 (20.07.2026)        - Edit + DOCX + Audio + Suche
+  |
+  v2.1.1 (20.07.2026)      - Security-Audit P0 Fixes
+  |
+  v2.2 (20.07.2026)        - Audio-Verschluesselung + Tags + Sortierung
+  |
+  v2.2.1 (20.07.2026)      - Audit P0/P1 Fixes (Performance, Race, Reset)
+  |
+  >>> AKTUELL HIER <<<
 ```
 
-### Was noch NICHT gemacht wurde (naechste Sessions)
+---
 
-#### v2.2 - Geplant fuer naechste Session
-1. **Audio in IndexedDB verschluesseln** (aktuell Klartext)
-   - Gleicher AES-GCM-Pfad wie keyvault.js nutzen
-   - Beim Speichern: verschluesseln, beim Lesen: entschluesseln
-2. **Tags/Kategorien** fuer Protokolle
-3. **Sortierung** (nach Datum, Titel, Provider)
+### Letzte Session (20.07. - zweite Haelfte) - v2.2 + v2.2.1
 
-#### v2.3+ - Spaeter
-- Sprecher-Erkennung (Diarization)
-- Login mit Google-Account statt anonym
-- To-Dos als eigene Ansicht (Kanban)
-- Firebase App Check
+#### Was wurde gemacht
+
+**1. Audio in IndexedDB verschluesselt (v2.2)**
+- Audios enthalten oft sensible Meeting-Inhalte
+- Vorher: Klartext-Blobs in IndexedDB
+- Jetzt: AES-GCM 256 mit Master-Passwort verschluesselt
+- Gleicher Key wie fuer API-Keys (Vault-Konzept durchgaengig)
+
+**2. Tags / Kategorien (v2.2)**
+- `services/tags.js`: Verwaltung aller genutzten Tags
+- Firestore: neues `tags` Array-Feld pro Bericht
+- UI: Chips mit Remove-Button, Eingabefeld mit Autovervollstaendigung
+- Anzeige in Berichtsliste (max 3, +N fuer Rest)
+
+**3. Sortierung (v2.2)**
+- 5 Sortier-Modi: Datum asc/desc, Titel asc/desc, Provider asc
+- Preference wird in localStorage gespeichert
+- Kombiniert mit Live-Suche
+
+**4. Audit P0/P1 Fixes (v2.2.1)**
+3 P0-Probleme vom Security-Audit behoben:
+- Base64-Konvertierung war O(n²) -> Mobile-Crash bei 20MB Audio
+  * Fix: Native Blobs statt Base64 in IndexedDB
+- Race-Condition bei schnellem Tag-Klick
+  * Fix: Mutex-Flag `tagUpdateInProgress`
+- resetVault() hat Audios nicht geloescht (Datenmuell)
+  * Fix: clearAllAudios() Funktion + Aufruf im Reset-Handler
+
+2 P1-Probleme behoben:
+- Firestore-Rules: Tags muessen Strings < 50 Zeichen sein
+- sanitizeTag in addTagToReport angewendet
+
+#### Commit-Historie v2.2/v2.2.1
+```
+8cce8b7 fix(v2.2.1): Security-Audit P0/P1 Fixes
+a979220 feat(v2.2): Sortierung der Berichts-Liste
+add0e4c feat(v2.2): Tags/Kategorien fuer Protokolle
+4dea114 feat(v2.2): Audio-Verschluesselung in IndexedDB
+```
+
+---
+
+### Session davor (20.07. - erste Haelfte) - v2.0, v2.1, v2.1.1
+
+#### Architektur (v2.0)
+- Provider-Adapter-Pattern mit Basis-Interface
+- 7 KI-Anbieter frei umschaltbar: Gemini, OpenAI, Anthropic, Ollama, MiniMax, GLM, NVIDIA
+- AES-GCM 256 Verschluesselung aller API-Keys
+- PBKDF2 600k Iterationen (OWASP 2023)
+- Migration v1 -> v2
+
+#### Features (v2.1)
+- Editierbare Protokolle (Titel + Markdown)
+- DOCX-Export (echte Word-Datei)
+- Audio-Wiedergabe im Detail-Modal (IndexedDB)
+- Suche/Filter (Live)
+
+#### Fixes (v2.1.1)
+- lastEdited in Firestore-Rules ergaenzt
+- SESSION_KEY ReferenceError behoben
+- DOCX dynamisch laden (CDN-Ausfall-Schutz)
+
+---
+
+## Aktueller Stand (Stand: 20.07.2026 Ende)
+
+**Live-URL:** https://momu-m.github.io/meeting-minutes-pwa/
+**Aktuelle Version:** v2.2.1 (produktionsklar)
+**Audit-Status:** Alle P0/P1 behoben
+**Tags als Backup:** `v1.0-stable`, `v2.0`, `v2.1`, `v2.1.1`, `v2.2`, `v2.2.1`
+
+### Funktionsumfang (komplett)
+
+**KI-Anbieter (7):** Gemini, OpenAI, Anthropic, Ollama, MiniMax, GLM, NVIDIA
+
+**Sicherheit:**
+- AES-GCM 256 fuer alle API-Keys UND Audios
+- PBKDF2 600k Iterationen
+- Master-Passwort min. 12 Zeichen mit Bestaetigung
+- AES-Key nur im RAM (kein sessionStorage)
+- Firestore-Rules: Default-Deny + Schema + Groessen
+
+**Features:**
+- Audio-Aufnahme + Import
+- Wake Lock
+- 3 Analyse-Vorlagen
+- Schweizer Rechtschreibung
+- Editierbare Protokolle
+- PDF + DOCX Export
+- Audio-Wiedergabe + Download
+- Live-Suche + Sortierung
+- Tags/Kategorien
+- Toast-Notifications
+- Web Share API
+
+**Speicherung:**
+- Protokolle -> Firestore (Cloud)
+- Audios -> IndexedDB (lokal, AES-GCM verschluesselt)
+- API-Keys -> localStorage (AES-GCM verschluesselt)
+- Settings + Tag-Liste -> localStorage (Klartext, nicht sensitiv)
+
+---
+
+## Was noch NICHT gemacht wurde (Backlog)
+
+### v2.3 - Naechste Session (Vorschlag)
+1. **Sprecher-Erkennung (Diarization)** fuer Meetings mit mehreren Personen
+   - Sinnvoll fuer echte Team-Meetings
+   -Implementation: AssemblyAI API oder pyannote.ai
+2. **Login mit Google-Account** statt anonym
+   - Damit Daten bei Geraetewechsel erhalten bleiben
+3. **To-Dos als eigene Ansicht** (Kanban-Style)
+   - Extrahiere To-Dos aus Protokollen
+4. **Firebase App Check** (zusatzlicher Schutz)
+
+### v2.4+ - Spaeter
 - Dark/Light-Mode-Umschalter
 - Offline-Transkription (whisper.cpp via WASM)
+- Microsoft Teams Integration
+- Multi-User Sharing (Protokolle mit Team teilen)
 
 ---
 
@@ -85,58 +162,48 @@ a408fa8 feat: v2.0 Multi-Provider-Architektur mit 7 KI-Anbietern
 - TEKO-Student Systemtechniker HF
 - Deutsch B1+, Muttersprache Arabisch
 - Anfaenger in Programmierung (lernt gerade)
-- Braucht: einfache Sprache, Schritt-fuer-Schritt-Erklaerungen, deutschen Code-Kommentare
+- Braucht: einfache Sprache, Schritt-fuer-Schritt-Erklaerungen
+- Braucht: deutsche Code-Kommentare
 
 ### Diese App ist
 - **NICHT** Teil der TEKO-Diplomarbeit
 - Nur fuer Mohamad persoenlich und sein Team
-- Private Nutzung, Szenario: Meeting-Protokolle auf iPhone/Mac
+- Private Nutzung: Meeting-Protokolle auf iPhone/Mac
 
 ### Technologie-Stack
 - **Frontend:** Vanilla JS (ES Modules), kein Framework
 - **Backend:** Firebase Firestore + anonyme Auth
-- **Speicherung:**
-  - Protokolle -> Firestore (Cloud)
-  - Audios -> IndexedDB (lokal, bis zu GB gross)
-  - API-Keys -> localStorage (AES-GCM verschluesselt)
-  - Settings -> localStorage (Klartext, nicht sensitiv)
-- **Deployment:** GitHub Pages (kostenlos, HTTPS automatisch)
+- **Deployment:** GitHub Pages (kostenlos)
 - **PWA:** Installierbar, Service Worker fuer Offline
 
-### EntwicKLungsprinzipien
+### Entwicklungsprinzipien (fuer neue Sessions)
 1. **Backup vor jeder Phase:** Git-Tag anlegen
 2. **Audit nach jedem Feature:** Subagent pruefen lassen
 3. **Push nach jedem Commit:** Sofort auf GitHub
-4. **Doku aktuell halten:** STATUS.md und SESSION_LOG.md
+4. **Doku aktuell halten:** STATUS.md + SESSION_LOG.md
 5. **Security first:** Keine ungetesteten Live-Aenderungen
-6. **Schweizer Rechtschreibung:** ss statt sz, echte Umlaute (ae->ä)
-7. **Deutsche Kommentare** im Code (Mohamad ist Anfaenger)
+6. **Schweizer Rechtschreibung:** ss statt sz, echte Umlaute
+7. **Deutsche Kommentare** im Code
 
 ### Repo-Infos
 - GitHub: https://github.com/momu-m/meeting-minutes-pwa
 - Live: https://momu-m.github.io/meeting-minutes-pwa/
 - Default-Branch: `main`
-- Tags: `v1.0-stable`, `v2.0`, `v2.1`, `v2.1.1`
-
-### Rollback
-```bash
-cd "/Users/momu/Asetronics_Projekte/70_Meeting-Minutes-PWA"
-git checkout v2.1.1        # Zurueck zur produktionsklaren Version
-git push origin main --force
-```
+- Backup-Tags: `v1.0-stable`, `v2.0`, `v2.1`, `v2.1.1`, `v2.2`, `v2.2.1`
 
 ---
 
 ## Naechste Session - Erste Schritte
 
-1. Lies zuerst STATUS.md (Live-Status, Funktionsumfang)
-2. Lies diese SESSION_LOG.md (was war, was kommt)
+1. Lies zuerst `STATUS.md` (Live-Status, Funktionsumfang)
+2. Lies diese `SESSION_LOG.md` (was war, was kommt)
 3. Frage Mo, welches Feature als naechstes drankommen soll:
-   - Audio verschluesseln (Security)
-   - Tags (Usability)
-   - Sortierung (Usability)
+   - Sprecher-Erkennung (Sinn fuer echte Meetings)
+   - Google-Login (statt anonym)
+   - To-Dos Kanban-Ansicht
+   - App Check (Sicherheit)
    - Oder etwas ganz anderes
-4. Backup-Tag anlegen vor dem ersten Commit
+4. Backup-Tag vor dem ersten Commit anlegen
 5. Schritt fuer Schritt implementieren + auditieren + pushen
 
 Viel Erfolg!
