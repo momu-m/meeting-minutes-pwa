@@ -254,3 +254,85 @@ export function resetVault() {
     // sessionStorage bleibt sauber, nichts zu loeschen.
     activeKey = null;
 }
+
+// ============================================================
+// v2.2: Erweiterung fuer Audio-Verschluesselung
+// ============================================================
+// Audio-Blobs koennen grosse Meeting-Inhalte enthalten (Personalia,
+// Strategie, Kunden). Deshalb werden sie ebenfalls mit AES-GCM
+// verschluesselt - mit demselben Schluessel wie die API-Keys.
+//
+// Da Audios bis zu 20 MB gross sein koennen, nutzen wir die
+// subtile API direkt auf dem Arraybuffer (performanter).
+
+import { encryptString, decryptString } from './crypto.js';
+
+// Eigene Hilfsfunktionen fuer Binaerdaten (nicht Strings)
+async function encryptBytes(buffer, key) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));  // 96-Bit IV
+    const encrypted = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: iv },
+        key,
+        buffer
+    );
+    return { iv, encrypted };
+}
+
+async function decryptBytes(iv, encrypted, key) {
+    return crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv },
+        key,
+        encrypted
+    );
+}
+
+// Base64 Hilfsfunktionen (Browser-kompatibel)
+function bufToBase64(buf) {
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+function base64ToBuf(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+}
+
+/**
+ * Verschluesselt einen ArrayBuffer mit dem aktiven Master-Key.
+ *
+ * @param {ArrayBuffer} buffer - Die Binaerdaten (z.B. Audio)
+ * @returns {Promise<{ivBase64: string, ciphertextBase64: string}>}
+ * @throws {Error} Wenn Vault gesperrt ist
+ */
+export async function encryptWithVaultKey(buffer) {
+    if (!activeKey) throw new Error('Vault ist gesperrt - Audio kann nicht verschluesselt werden.');
+
+    const { iv, encrypted } = await encryptBytes(buffer, activeKey);
+    return {
+        ivBase64: bufToBase64(iv),
+        ciphertextBase64: bufToBase64(encrypted)
+    };
+}
+
+/**
+ * Entschluesselt Daten mit dem aktiven Master-Key.
+ *
+ * @param {string} ivBase64       - IV als Base64
+ * @param {string} ciphertextBase64 - Verschluesselte Daten als Base64
+ * @returns {Promise<ArrayBuffer>} Die Klartext-Binaerdaten
+ */
+export async function decryptWithVaultKey(ivBase64, ciphertextBase64) {
+    if (!activeKey) throw new Error('Vault ist gesperrt - Audio kann nicht geladen werden.');
+
+    const iv = base64ToBuf(ivBase64);
+    const ciphertext = base64ToBuf(ciphertextBase64);
+    return decryptBytes(iv, ciphertext, activeKey);
+}
