@@ -130,40 +130,15 @@ export class BaseProvider {
 // ============================================================
 
 const PROVIDER_META = {
-    gemini: {
-        color: '#4285F4',
-        tagline: 'Audio direkt, schnell',
-        icon: '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>'
-    },
     openai: {
         color: '#10A37F',
-        tagline: 'Whisper + GPT-4o',
+        tagline: '1 Key (sk-...): Whisper + GPT',
         icon: '<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>'
     },
-    anthropic: {
-        color: '#D97757',
-        tagline: 'Whisper + Claude',
-        icon: '<path d="M12 2a9 9 0 1 0 9 9"/><path d="M12 11l3-7"/><circle cx="12" cy="11" r="1.5"/>'
-    },
-    ollama: {
-        color: '#8B5CF6',
-        tagline: 'Ollama Cloud',
-        icon: '<path d="M12 2C7 2 3 6 3 11s4 9 9 9 9-4 9-9-4-9-9-9z"/><path d="M8 11h.01M16 11h.01"/>'
-    },
-    minimax: {
-        color: '#F59E0B',
-        tagline: 'MiniMax (CN)',
-        icon: '<path d="M3 12h4l3-8 4 16 3-8h4"/>'
-    },
-    glm: {
-        color: '#3B82F6',
-        tagline: 'GLM / ZhipuAI',
-        icon: '<path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/>'
-    },
-    nvidia: {
-        color: '#76B900',
-        tagline: 'Llama 3.1 70B',
-        icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>'
+    gemini: {
+        color: '#4285F4',
+        tagline: '1 Key (AIzaSy...): Audio direkt',
+        icon: '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>'
     }
 };
 

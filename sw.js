@@ -1,19 +1,20 @@
 // ============================================================
-// SERVICE WORKER v5 — Asetronics Meeting-Minuten AI v2.3.1
+// SERVICE WORKER v6 — Asetronics Meeting-Minuten AI v2.4
 // ============================================================
-// Cache-Version v8: Hotfix fuer Circular Dependency.
+// Cache-Version v9: Vereinfachtes Onboarding + 2 saubere Provider.
 //
-// v2.3.1 (dieser Stand):
-//   - providers/index.js neu: enthaelt REGISTRY + Provider-Imports
-//   - providers/base.js: nur noch BaseProvider + getProviderMeta
-//   - app.js: importiert von providers/index.js (nicht mehr base.js)
-//   - Fix: "Cannot access 'BaseProvider' before initialization"
+// v2.4 (dieser Stand):
+//   - providers/index.js: nur noch OpenAI + Gemini (jeweils 1 Key)
+//   - providers/base.js: Meta-Daten auf 2 Provider reduziert
+//   - app.js: Vereinfachtes Onboarding (Token-Eingabe statt Master-PW-Vergleich)
+//   - showWelcomeOnboarding() als neuer Einstiegspunkt
 //
-// v2.3 (v7): UI-Redesign (Provider-Switcher, Glow, Wellen, Karten-Vorschau)
+// v2.3.1 (v8): Hotfix Circular Dependency
+// v2.3 (v7): UI-Redesign
 // ============================================================
 
 // Cache-Version - bei jeder Code-Aenderung erhoehen!
-const CACHE_NAME = 'asetronics-meeting-ai-v8';
+const CACHE_NAME = 'asetronics-meeting-ai-v9';
 
 // Liste aller Dateien, die fuer Offline-Modus gecacht werden
 const ASSETS = [

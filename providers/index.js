@@ -1,44 +1,36 @@
 // ============================================================
 // PROVIDER INDEX - Registry und Haupteinstieg fuer die App
 // ============================================================
-// Diese Datei loest den Circular Dependency (Zirkelbezug), der
-// frueher in base.js existierte:
+// v2.4 PHILOSOPHIE:
+//   Jeder hier gelistete Provider funktioniert mit NUR EINEM Key.
+//   Kein "2-Stage mit OpenAI+X" mehr - das war verwirrend.
 //
-//   ALT (kaputt):
-//     base.js -> importiert gemini.js -> importiert BaseProvider aus base.js
-//     => "Cannot access 'BaseProvider' before initialization"
+//   Provider mit eigenem STT + LLM (1 Key):
+//     - OpenAI (sk-...):  Whisper (Audio) + GPT-4o-mini (Text)
+//     - Gemini (AIzaSy...): Audio direkt in 1 Call verarbeitet
 //
-//   NEU (sauber):
-//     base.js    = nur die Klasse BaseProvider + getProviderMeta (keine Provider-Imports)
-//     index.js   = importiert alle Provider + baut die REGISTRY auf
-//     app.js     = importiert ausschliesslich von hier (index.js)
+// Saubere Struktur (kein Circular Dependency):
+//   base.js    = nur die Klasse BaseProvider + getProviderMeta
+//   index.js   = importiert Provider + baut die REGISTRY auf
+//   app.js     = importiert ausschliesslich von hier
 //
 // Neue Provider hinzufuegen:
 //   1. Datei providers/xxx.js erstellen (erbt von BaseProvider aus base.js)
 //   2. Hier importieren und in REGISTRY aufnehmen
+//   3. WICHTIG: Darf nur 1 Key benoetigen!
 // ============================================================
 
 import { GeminiProvider } from './gemini.js';
 import { OpenAIProvider } from './openai.js';
-import { AnthropicProvider } from './anthropic.js';
-import { OllamaProvider } from './ollama.js';
-import { MiniMaxProvider } from './minimax.js';
-import { GLMProvider } from './glm.js';
-import { NvidiaProvider } from './nvidia.js';
 
-// getProviderMeta bleibt in base.js, weil es nur statische UI-Daten ist
-// und von ueberall ohne Zirkelbezug importiert werden darf.
+// getProviderMeta bleibt in base.js (nur statische UI-Daten, kein Zirkelbezug)
 export { getProviderMeta } from './base.js';
 
-// Liste aller registrierten Provider (in dieser Reihenfolge erscheinen sie im UI)
+// Liste der verfuegbaren Provider (Reihenfolge = Reihenfolge im UI)
+// OpenAI zuerst, weil die meisten Nutzer einen sk-... Token haben.
 const REGISTRY = [
-    new GeminiProvider(),
-    new OpenAIProvider(),
-    new AnthropicProvider(),
-    new OllamaProvider(),
-    new MiniMaxProvider(),
-    new GLMProvider(),
-    new NvidiaProvider()
+    new OpenAIProvider(),    // 1 Key: sk-... (Whisper + GPT)
+    new GeminiProvider()     // 1 Key: AIzaSy... (direkte Audio-Verarbeitung)
 ];
 
 /**
@@ -51,7 +43,7 @@ export function getAllProviders() {
 
 /**
  * Sucht einen Provider anhand seiner ID.
- * @param {string} id - Die Provider-ID (z.B. "gemini")
+ * @param {string} id - Die Provider-ID (z.B. "openai")
  * @returns {BaseProvider|null}
  */
 export function getProviderById(id) {
@@ -59,9 +51,8 @@ export function getProviderById(id) {
 }
 
 /**
- * Gibt die Standard-Vorbelegung zurueck (erster Provider).
- * Aktuell: Gemini, weil es der einzige 1-Stage-Provider ist
- * und die beste Audio-Qualitaet bietet.
+ * Gibt die Standard-Vorbelegung zurueck.
+ * v2.4: OpenAI ist Default, weil die meisten Nutzer einen sk-Token haben.
  * @returns {BaseProvider}
  */
 export function getDefaultProvider() {

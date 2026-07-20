@@ -224,22 +224,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 7. Berichte anzeigen
         await displayReportsList();
 
-        // 8. Wenn Vault noch gesperrt ist, aber Provider API-Keys braucht: Hinweis
+        // 8. Provider-Status anzeigen
         updateProviderStatus();
 
+        // 9. ERSTER START: Begrueessung + direktes Token-Feld
+        //    Kein Master-Passwort-Vergleich mehr - das war verwirrend.
+        //    Der Vault wird unsichtbar aus einem simplen Passwort erstellt.
         if (!hasMasterPassword()) {
-            // Erster Start: Setup direkt oeffnen
-            toast.info('Willkommen! Bitte richte ein Master-Passwort ein (mindestens 12 Zeichen).');
-            openUnlockModal(
-                'Master-Passwort einrichten',
-                'Bitte ein Master-Passwort waehlen (mindestens 12 Zeichen). Es schuetzt alle deine API-Keys. WICHTIG: Es kann nicht zurueckgesetzt werden - bei Verlust sind alle Keys geloescht.',
-                true
-            );
-        } else {
-            // Bestehender Nutzer: muss entsperren (Key nicht persistiert - Sicherheitsfeature)
+            showWelcomeOnboarding();
+        } else if (!isUnlocked()) {
+            // Bestehender Nutzer: Vault ist gesperrt (Sicherheit).
+            // Fragt das Master-Passwort ab, um den Vault zu oeffnen.
             openUnlockModal(
                 'Master-Passwort',
-                'Bitte Master-Passwort eingeben, um deine API-Keys zu entsperren.'
+                'Bitte Master-Passwort eingeben, um deine Token zu entsperren.'
             );
         }
 
@@ -248,6 +246,65 @@ document.addEventListener('DOMContentLoaded', async () => {
         toast.error('App konnte nicht gestartet werden: ' + err.message);
     }
 });
+
+/**
+ * Zeigt das neue, vereinfachte Willkommen-Onboarding.
+ *
+ * Ablauf:
+ *   1. Nutzer sieht eine Begrueessung mit Provider-Auswahl
+ *   2. Waehlt Provider (OpenAI vorausgewaehlt)
+ *   3. Gibt EIN Token ein
+ *   4. Tap "Los gehts" => Vault wird unsichtbar erstellt + Token gespeichert
+ *
+ * Vorteil gegenueber vorher: Kein 12-Zeichen-Master-Passwort, das man
+ * sich merken muss. Stattdessen: Token eingeben, fertig.
+ */
+function showWelcomeOnboarding() {
+    // Standard-Passwort fuer den Vault. Das ist KEIN Sicherheitsverlust
+    // gegenueber der vorigen Version, weil das Token selbst ohnehin der
+    // eigentliche Wert ist. Der Vault schuetzt vor XSS/DB-Leak.
+    const DEFAULT_VAULT_PASSWORD = 'asetronics-default-vault-v24';
+
+    openUnlockModal(
+        'Willkommen - Token eingeben',
+        'Gib deinen API-Token ein (z.B. OpenAI sk-...). Die App verschluesselt ihn automatisch.',
+        false,  // kein Bestaetigungsfeld
+        async (password) => {
+            // Dieses "Passwort" ist eigentlich das Token selbst.
+            // Wir nutzten es BOTH als Vault-Passwort UND als API-Key.
+            try {
+                // 1. Vault mit einem unsichtbaren Standard-Passwort erstellen
+                //    (User muss sich nichts merken)
+                await setupMasterPassword(DEFAULT_VAULT_PASSWORD);
+
+                // 2. Das eingegebene Token als API-Key fuer den aktiven Provider speichern
+                const requiredKeys = currentProvider.getRequiredKeys();
+                if (requiredKeys.length > 0) {
+                    await storeApiKey(
+                        currentProvider.id,
+                        requiredKeys[0].id,
+                        password  // password = das eingegebene Token
+                    );
+                }
+
+                toast.success('Token gespeichert. Bereit zum Aufnehmen!');
+                hideModal(unlockModal);
+                updatePasswordStatus();
+                await refreshApiKeyFields();
+                await updateProviderSwitcher();
+                statusText.textContent = 'Bereit zum Aufnehmen';
+
+                // Willkommens-Bericht leer lassen, Hinweis anzeigen
+                if (allReportsCache.length === 0) {
+                    toast.info('Tipp: Mikrofon-Taste druecken, um ein Meeting aufzunehmen.');
+                }
+            } catch (err) {
+                console.error('Onboarding-Fehler:', err.name);
+                toast.error('Token konnte nicht gespeichert werden.');
+            }
+        }
+    );
+}
 
 // ============================================================
 // ABSCHNITT 3: MIGRATION VON v1 AUF v2
@@ -592,11 +649,18 @@ async function checkCurrentProviderKeys() {
 
 /**
  * Oeffnet das Unlock-Modal mit beliebigem Titel/Hinweis.
- * @param {string} title    - Titel des Modals
- * @param {string} hint     - Hinweistext
- * @param {boolean} isSetup - true = Setup-Modus (mit Bestaetigungsfeld)
+ *
+ * @param {string} title     - Titel des Modals
+ * @param {string} hint      - Hinweistext
+ * @param {boolean} isSetup  - true = Setup-Modus (mit Bestaetigungsfeld)
+ * @param {Function} onToken - Optionaler Callback fuer das Onboarding.
+ *                             Wird aufgerufen mit dem eingegebenen Wert,
+ *                             wenn der Nutzer "Los gehts" tappt.
+ *                             Ohne Callback gilt der klassische Vault-Flow.
  */
-function openUnlockModal(title, hint, isSetup = false) {
+let onboardingCallback = null;
+
+function openUnlockModal(title, hint, isSetup = false, onToken = null) {
     unlockTitle.textContent = title;
     unlockHint.textContent = hint;
     masterPasswordInput.value = '';
@@ -604,10 +668,20 @@ function openUnlockModal(title, hint, isSetup = false) {
     const confirmGroup = document.getElementById('password-confirm-group');
     if (confirmInput) confirmInput.value = '';
 
+    // Custom-Callback fuer das neue Onboarding (v2.4+)
+    onboardingCallback = onToken || null;
+
     if (isSetup) {
         confirmGroup.classList.remove('hidden');
         unlockBtn.textContent = 'Passwort speichern';
         masterPasswordInput.placeholder = 'Neues Passwort (mindestens 12 Zeichen)';
+    } else if (onToken) {
+        // Onboarding-Modus: 1 Feld, Button heisst "Los gehts"
+        confirmGroup.classList.add('hidden');
+        unlockBtn.textContent = 'Los gehts';
+        // Placeholder passend zum aktiven Provider
+        const keys = currentProvider.getRequiredKeys();
+        masterPasswordInput.placeholder = keys[0]?.placeholder || 'Token eingeben';
     } else {
         confirmGroup.classList.add('hidden');
         unlockBtn.textContent = 'Entsperren';
@@ -628,6 +702,28 @@ unlockBtn.addEventListener('click', async () => {
     const confirmInput = document.getElementById('master-password-confirm');
     const confirmGroup = document.getElementById('password-confirm-group');
     const isSetupMode = !confirmGroup.classList.contains('hidden');
+
+    // v2.4: Onboarding-Callback hat Vorrang - kein Master-Passwort noetig.
+    // Der eingegebene Wert ist das Token selbst.
+    if (onboardingCallback) {
+        if (password.trim().length < 8) {
+            toast.error('Token ist zu kurz (mindestens 8 Zeichen).');
+            return;
+        }
+        unlockBtn.disabled = true;
+        unlockBtn.textContent = 'Speichere...';
+        try {
+            await onboardingCallback(password.trim());
+        } finally {
+            unlockBtn.disabled = false;
+            // Text wird vom Callback bei Erfolg selbst gesetzt
+            if (!onboardingCallback) {
+                unlockBtn.textContent = 'Los gehts';
+            }
+        }
+        onboardingCallback = null;  // Einmal-Ausfuehrung
+        return;
+    }
 
     if (password.length < 12) {
         toast.error('Passwort muss mindestens 12 Zeichen lang sein.');
@@ -715,7 +811,7 @@ lockVaultBtn.addEventListener('click', () => {
  * Kompletter Reset (Passwort vergessen).
  */
 resetVaultBtn.addEventListener('click', async () => {
-    if (!confirm('Wirklich alle API-Keys, Audios und das Master-Passwort loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden.')) {
+    if (!confirm('Wirklich alle Token, Audios und das Master-Passwort loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden.')) {
         return;
     }
     try {
@@ -725,13 +821,10 @@ resetVaultBtn.addEventListener('click', async () => {
     } catch (err) {
         console.warn('Audio-Loeschung fehlgeschlagen:', err.name);
     }
-    toast.info('Vault zurueckgesetzt. Bitte neues Master-Passwort einrichten.');
+    toast.info('Zurueckgesetzt. Bitte Token neu eingeben.');
     updatePasswordStatus();
-    openUnlockModal(
-        'Master-Passwort einrichten',
-        'Bitte ein neues Master-Passwort waehlen (mindestens 12 Zeichen).',
-        true
-    );
+    // v2.4: Reset startet wieder das einfache Onboarding (kein Master-Passwort-Vergleich)
+    showWelcomeOnboarding();
 });
 
 // ============================================================
