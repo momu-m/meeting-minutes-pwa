@@ -5,20 +5,38 @@
 // die in Microsoft Word, LibreOffice oder Google Docs geoeffnet
 // werden kann.
 //
-// Nutzt die "docx" Bibliothek (pure JS, kein Server noetig).
-// Geladen via jsDelivr CDN als ES-Module.
+// SECURITY-HINWEIS (v2.1.1):
+// Die docx-Bibliothek wird LAZY geladen (dynamischer Import) - nicht
+// beim App-Start. Grund: Bei einem CDN-Ausfall oder einer Kompromittierung
+// von jsDelivr wuerde ein statischer Import die ganze App blockieren.
+// Mit dynamischem Import betrifft ein Fehler nur den DOCX-Export,
+// der Rest der App funktioniert weiter.
 // ============================================================
 
-// docx-Bibliothek laden (Version 9.x, kompatibel mit ESM-Import)
-import {
-    Document, Packer, Paragraph, TextRun, HeadingLevel,
-    AlignmentType, convertInchesToTwip
-} from 'https://cdn.jsdelivr.net/npm/docx@9.0.0/build/index.js';
+// docx-Bibliothek wird erst beim ersten Export geladen (lazy loading)
+let docxModule = null;
+const DOCX_CDN_URL = 'https://cdn.jsdelivr.net/npm/docx@9.0.0/build/index.js';
+
+/**
+ * Laedt die docx-Bibliothek beim ersten Gebrauch.
+ * Wirft einen sauberen Fehler, wenn das CDN nicht erreichbar ist.
+ *
+ * @returns {Promise<Object>} Das docx-Modul
+ */
+async function loadDocx() {
+    if (docxModule) return docxModule;
+    try {
+        docxModule = await import(DOCX_CDN_URL);
+        return docxModule;
+    } catch (err) {
+        throw new Error('DOCX-Bibliothek konnte nicht geladen werden. Internetverbindung pruefen.');
+    }
+}
 
 /**
  * Wandelt einen Markdown-Text in ein Array von docx-Paragraphen um.
  *
- * Unterstützt:
+ * Unterstuetzt:
  *   - Ueberschriften (#, ##, ###)
  *   - Aufzaehlungslisten (- oder *)
  *   - Checkboxen (- [ ] / - [x])
@@ -26,19 +44,19 @@ import {
  *   - Normale Absaetze
  *
  * @param {string} markdown - Der Markdown-Text
+ * @param {Object} docx     - Das geladene docx-Modul
  * @returns {Array} Array von docx-Paragraphen
  */
-function markdownToParagraphs(markdown) {
+function markdownToParagraphs(markdown, docx) {
+    const { Paragraph, TextRun, HeadingLevel } = docx;
     const paragraphs = [];
     const lines = markdown.split('\n');
-    let inList = false;
 
     for (const line of lines) {
         const trimmed = line.trim();
 
         // Leere Zeile: Absatz-Abstand
         if (trimmed === '') {
-            if (inList) inList = false;
             paragraphs.push(new Paragraph({ text: '' }));
             continue;
         }
@@ -71,8 +89,7 @@ function markdownToParagraphs(markdown) {
         if (checkboxMatch) {
             const checked = checkboxMatch[1].toLowerCase() === 'x';
             const text = checkboxMatch[2];
-            // Fett-Markierungen verarbeiten (**text**)
-            const runs = parseBoldText(text);
+            const runs = parseBoldText(text, docx);
             paragraphs.push(new Paragraph({
                 bullet: { level: 0 },
                 children: [
@@ -86,7 +103,7 @@ function markdownToParagraphs(markdown) {
         // Aufzaehlungsliste: - oder *
         if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
             const text = trimmed.substring(2);
-            const runs = parseBoldText(text);
+            const runs = parseBoldText(text, docx);
             paragraphs.push(new Paragraph({
                 bullet: { level: 0 },
                 children: runs
@@ -103,7 +120,7 @@ function markdownToParagraphs(markdown) {
         }
 
         // Normaler Absatz
-        const runs = parseBoldText(trimmed);
+        const runs = parseBoldText(trimmed, docx);
         paragraphs.push(new Paragraph({ children: runs }));
     }
 
@@ -115,26 +132,24 @@ function markdownToParagraphs(markdown) {
  * Gibt ein Array von TextRun-Objekten zurueck.
  *
  * @param {string} text - Text mit moeglichen **Markierungen**
+ * @param {Object} docx - Das geladene docx-Modul
  * @returns {Array<TextRun>}
  */
-function parseBoldText(text) {
+function parseBoldText(text, docx) {
+    const { TextRun } = docx;
     const runs = [];
-    // Regex: erfasst **text** und einfache Textteile dazwischen
     const regex = /\*\*(.+?)\*\*/g;
     let lastIndex = 0;
     let match;
 
     while ((match = regex.exec(text)) !== null) {
-        // Text vor dem Match
         if (match.index > lastIndex) {
             runs.push(new TextRun({ text: text.substring(lastIndex, match.index) }));
         }
-        // Der fette Text
         runs.push(new TextRun({ text: match[1], bold: true }));
         lastIndex = regex.lastIndex;
     }
 
-    // Rest nach dem letzten Match
     if (lastIndex < text.length) {
         runs.push(new TextRun({ text: text.substring(lastIndex) }));
     }
@@ -150,10 +165,14 @@ function parseBoldText(text) {
  * @returns {Promise<void>}
  */
 export async function exportMarkdownToDocx(markdown, title = 'Protokoll') {
-    // 1. Markdown zu Paragraphen umwandeln
-    const paragraphs = markdownToParagraphs(markdown);
+    // 1. docx-Bibliothek lazy laden (nur beim ersten Export)
+    const docx = await loadDocx();
+    const { Document, Packer, convertInchesToTwip } = docx;
 
-    // 2. Dokument erstellen
+    // 2. Markdown zu Paragraphen umwandeln
+    const paragraphs = markdownToParagraphs(markdown, docx);
+
+    // 3. Dokument erstellen
     const doc = new Document({
         creator: 'Asetronics Meeting-Minuten AI',
         title: title,
@@ -183,10 +202,10 @@ export async function exportMarkdownToDocx(markdown, title = 'Protokoll') {
         }]
     });
 
-    // 3. DOCX als Blob erzeugen
+    // 4. DOCX als Blob erzeugen
     const blob = await Packer.toBlob(doc);
 
-    // 4. Download ausloesen
+    // 5. Download ausloesen
     const safeTitle = title.replace(/[^a-zA-Z0-9äöüÄÖÜ\-_ ]/g, '').trim() || 'Protokoll';
     const filename = `${safeTitle}.docx`;
     triggerDownload(blob, filename);

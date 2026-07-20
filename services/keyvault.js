@@ -250,6 +250,7 @@ export function deleteApiKey(providerId, keyId) {
 export function resetVault() {
     localStorage.removeItem(META_KEY);
     localStorage.removeItem(DATA_KEY);
-    sessionStorage.removeItem(SESSION_KEY);
+    // Security-Fix: SESSION_KEY nicht mehr genutzt seit v2.0.1 (RAM-only Key).
+    // sessionStorage bleibt sauber, nichts zu loeschen.
     activeKey = null;
 }

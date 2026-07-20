@@ -90,10 +90,11 @@ self.addEventListener('activate', (event) => {
 // Ausnahmen:
 //   - API-Aufrufe (Google, OpenAI, Anthropic, etc.) nie cachen
 //   - Firebase-Ressourcen immer aus dem Netz
+//   - CDN-Bibliotheken (jsdelivr) nicht cachen (Cache-Poisoning-Schutz)
 self.addEventListener('fetch', (event) => {
     const url = event.request.url;
 
-    // API-Calls und Firebase nie cachen
+    // API-Calls, Firebase und CDN nie cachen
     const NEVER_CACHE = [
         'googleapis.com',
         'api.openai.com',
@@ -103,7 +104,10 @@ self.addEventListener('fetch', (event) => {
         'open.bigmodel.cn',
         'integrate.api.nvidia.com',
         'firestore.googleapis.com',
-        'firebase'
+        'firebase',
+        'cdn.jsdelivr.net',      // CDN-Bibliotheken immer frisch laden
+        'unpkg.com',
+        'cdnjs.cloudflare.com'
     ];
 
     if (NEVER_CACHE.some(host => url.includes(host))) {

@@ -27,7 +27,7 @@ service cloud.firestore {
                               && request.auth.uid == userId
                               // Schema pruefen: nur erlaubte Felder
                               && request.resource.data.keys().hasAll(['id', 'title', 'date', 'content'])
-                              && request.resource.data.keys().hasOnly(['id', 'title', 'date', 'content', 'provider', 'createdAt'])
+                              && request.resource.data.keys().hasOnly(['id', 'title', 'date', 'content', 'provider', 'createdAt', 'lastEdited'])
                               // Typen pruefen
                               && request.resource.data.id is int
                               && request.resource.data.title is string
