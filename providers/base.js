@@ -102,59 +102,21 @@ export class BaseProvider {
 // ============================================================
 // PROVIDER REGISTRY - Zentrale Liste aller verfuegbaren Provider
 // ============================================================
-// Hier werden alle Provider registriert. Die App holt sich von hier
-// die Liste der verfuegbaren Provider und kann diese durchschalten.
+// WICHTIG: Die REGISTRY und die Provider-Imports liegen in der
+// separaten Datei providers/index.js. Das verhindert einen
+// Circular Dependency (Zirkelbezug):
+//
+//   base.js  ->  importiert gemini.js  ->  importiert base.js
+//
+// Saubere Struktur:
+//   base.js    = nur BaseProvider + getProviderMeta (keine konkreten Provider)
+//   index.js   = importiert alle Provider + enthaelt REGISTRY
+//   app.js     = importiert von index.js (nicht von base.js!)
 //
 // Neue Provider hinzufuegen:
-//   1. Datei providers/xxx.js erstellen (erbt von BaseProvider)
-//   2. Hier importieren und in REGISTRY aufnehmen
+//   1. Datei providers/xxx.js erstellen (erbt von BaseProvider aus base.js)
+//   2. In providers/index.js importieren und in REGISTRY aufnehmen
 // ============================================================
-
-import { GeminiProvider } from './gemini.js';
-import { OpenAIProvider } from './openai.js';
-import { AnthropicProvider } from './anthropic.js';
-import { OllamaProvider } from './ollama.js';
-import { MiniMaxProvider } from './minimax.js';
-import { GLMProvider } from './glm.js';
-import { NvidiaProvider } from './nvidia.js';
-
-// Liste aller registrierten Provider (in dieser Reihenfolge erscheinen sie im UI)
-const REGISTRY = [
-    new GeminiProvider(),
-    new OpenAIProvider(),
-    new AnthropicProvider(),
-    new OllamaProvider(),
-    new MiniMaxProvider(),
-    new GLMProvider(),
-    new NvidiaProvider()
-];
-
-/**
- * Gibt alle verfuegbaren Provider zurueck.
- * @returns {Array<BaseProvider>}
- */
-export function getAllProviders() {
-    return REGISTRY;
-}
-
-/**
- * Sucht einen Provider anhand seiner ID.
- * @param {string} id - Die Provider-ID (z.B. "gemini")
- * @returns {BaseProvider|null}
- */
-export function getProviderById(id) {
-    return REGISTRY.find(p => p.id === id) || null;
-}
-
-/**
- * Gibt die Standard-Vorbelegung zurueck (erster Provider).
- * Aktuell: Gemini, weil es der einzige 1-Stage-Provider ist
- * und die beste Audio-Qualitaet bietet.
- * @returns {BaseProvider}
- */
-export function getDefaultProvider() {
-    return REGISTRY[0];
-}
 
 // ============================================================
 // PROVIDER META - UI-relevante Metadaten (Icon, Farbe, Kurztext)

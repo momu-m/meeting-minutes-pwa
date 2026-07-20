@@ -16,7 +16,10 @@
 import { db, auth, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, signInAnonymously, onAuthStateChanged } from './firebase-config.js';
 
 // --- Eigene Services ---
-import { getAllProviders, getProviderById, getDefaultProvider, getProviderMeta } from './providers/base.js';
+// WICHTIG: Provider-Funktionen kommen aus providers/index.js, NICHT aus base.js.
+// base.js enthaelt nur noch die Klasse BaseProvider + getProviderMeta.
+// index.js loest den Circular Dependency (siehe Kommentar dort).
+import { getAllProviders, getProviderById, getDefaultProvider, getProviderMeta } from './providers/index.js';
 import { saveReport, getAllReports, deleteReport, initAuth, getCurrentUserId, updateReport } from './services/db.js';
 import { toast } from './services/notify.js';
 import { renderMarkdownToHTML, extractTitle, escapeHTML } from './utils/markdown.js';

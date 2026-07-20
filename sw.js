@@ -1,18 +1,19 @@
 // ============================================================
-// SERVICE WORKER v4 — Asetronics Meeting-Minuten AI v2.3
+// SERVICE WORKER v5 — Asetronics Meeting-Minuten AI v2.3.1
 // ============================================================
-// Cache-Version v7: inkl. UI-Redesign (Provider-Switcher,
-// Wellen-Animation, Karten mit Vorschau, Header-Logo).
+// Cache-Version v8: Hotfix fuer Circular Dependency.
 //
-// Geaendert gegenueber v6:
-//   - index.html: Provider-Switcher + Sheet, Header-Logo, Waves
-//   - styles.css: komplettes UI-Polishing
-//   - app.js: Switcher-Logik + Karten-Render mit Vorschau
-//   - providers/base.js: getProviderMeta() hinzugefuegt
+// v2.3.1 (dieser Stand):
+//   - providers/index.js neu: enthaelt REGISTRY + Provider-Imports
+//   - providers/base.js: nur noch BaseProvider + getProviderMeta
+//   - app.js: importiert von providers/index.js (nicht mehr base.js)
+//   - Fix: "Cannot access 'BaseProvider' before initialization"
+//
+// v2.3 (v7): UI-Redesign (Provider-Switcher, Glow, Wellen, Karten-Vorschau)
 // ============================================================
 
 // Cache-Version - bei jeder Code-Aenderung erhoehen!
-const CACHE_NAME = 'asetronics-meeting-ai-v7';
+const CACHE_NAME = 'asetronics-meeting-ai-v8';
 
 // Liste aller Dateien, die fuer Offline-Modus gecacht werden
 const ASSETS = [
@@ -27,6 +28,7 @@ const ASSETS = [
     './icon-512.png',
     // Provider-Module
     './providers/base.js',
+    './providers/index.js',
     './providers/gemini.js',
     './providers/openai.js',
     './providers/anthropic.js',
