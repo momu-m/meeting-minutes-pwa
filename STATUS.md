@@ -5,8 +5,8 @@
 
 **Letzte Aktualisierung:** 2026-07-20
 **Live-URL:** https://momu-m.github.io/meeting-minutes-pwa/
-**Aktuelle Version:** v2.3 (UI-Redesign, lokal getestet - noch nicht live)
-**Backup-Tags:** `v1.0-stable`, `v2.0`, `v2.1`, `v2.1.1`, `v2.2`, `v2.2.1`
+**Aktuelle Version:** v2.3.1 (Live - Hotfix Circular Dependency)
+**Backup-Tags:** `v1.0-stable`, `v2.0`, `v2.1`, `v2.1.1`, `v2.2`, `v2.2.1`, `v2.3`, `v2.3.1`
 
 ---
 
@@ -70,6 +70,15 @@
 ---
 
 ## Erledigt (Done)
+
+### v2.3.1 - 20. Juli 2026 (KRITISCHER HOTFIX)
+- [x] Bug gefunden: "Uncaught ReferenceError: Cannot access 'BaseProvider' before initialization" - App startete nicht
+- [x] Ursache: Circular Dependency in base.js (importierte Provider, die selbst BaseProvider importierten)
+- [x] Bug existierte schon in v2.2.1, wurde von aelteren Chrome-Versionen toleriert
+- [x] Fix: providers/index.js (NEU) enthaelt REGISTRY + Provider-Imports, base.js nur noch BaseProvider + getProviderMeta
+- [x] app.js importiert jetzt von providers/index.js
+- [x] 13/13 E2E-Tests bestanden, Chrome Headless ohne Console-Fehler
+- [x] Live-Version verifiziert (Cache v8, providers/index.js HTTP 200)
 
 ### v2.3 - 20. Juli 2026 (UI-Redesign "App-Gefuehl")
 - [x] Provider-Switcher direkt auf der Startseite (2 Taps statt Zahnrad-Weg)
