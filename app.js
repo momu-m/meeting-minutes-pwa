@@ -23,6 +23,7 @@ import { renderMarkdownToHTML, extractTitle, escapeHTML } from './utils/markdown
 import { formatSwissDateTime, formatDuration, korrigiereSchweizerRechtschreibung } from './utils/format.js';
 import { exportMarkdownToDocx } from './services/docx-export.js';
 import { saveAudio, getAudio, hasAudio, deleteAudio } from './services/audio-store.js';
+import { getAllTags, addTag, isValidTag, TAG_LIMITS } from './services/tags.js';
 import {
     hasMasterPassword, isUnlocked, setupMasterPassword,
     unlock, lock, tryRestoreSession,
@@ -115,6 +116,13 @@ const searchBar = document.getElementById('search-bar');
 const searchInput = document.getElementById('search-input');
 const clearSearchBtn = document.getElementById('clear-search-btn');
 const reportCountBadge = document.getElementById('report-count');
+
+// Tags
+const addTagBtn = document.getElementById('add-tag-btn');
+const tagInputArea = document.getElementById('tag-input-area');
+const tagInput = document.getElementById('tag-input');
+const tagSuggestions = document.getElementById('tag-suggestions');
+const reportTagsDisplay = document.getElementById('report-tags-display');
 
 // Cache aller Berichte (fuer Suche ohne Roundtrip zur DB)
 let allReportsCache = [];
@@ -906,10 +914,23 @@ function renderReportsList(reports) {
             ? `<span class="report-provider">${escapeHTML(report.provider)}</span>`
             : '';
 
+        // Tags als kleine Chips (max 3 anzeigen, Rest als "+N")
+        const tags = report.tags || [];
+        let tagsHTML = '';
+        if (tags.length > 0) {
+            const visibleTags = tags.slice(0, 3);
+            const extraCount = tags.length - visibleTags.length;
+            tagsHTML = '<div class="report-tags">' +
+                visibleTags.map(t => `<span class="tag-chip-small">${escapeHTML(t)}</span>`).join('') +
+                (extraCount > 0 ? `<span class="tag-more">+${extraCount}</span>` : '') +
+                '</div>';
+        }
+
         item.innerHTML = `
             <div class="report-info">
                 <div class="report-title">${escapeHTML(report.title)}</div>
                 <div class="report-meta">${escapeHTML(report.date)} ${providerBadge}</div>
+                ${tagsHTML}
             </div>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted)"><polyline points="9 18 15 12 9 6"></polyline></svg>
         `;
@@ -945,6 +966,10 @@ function openReportDetail(report) {
 
     // Audio-Player anzeigen, falls Audio vorhanden
     loadAudioForReport(report.id);
+
+    // Tags rendern
+    renderReportTags();
+    hideTagInput();
 }
 
 /**
@@ -1147,6 +1172,168 @@ saveEditBtn.addEventListener('click', async () => {
     } finally {
         saveEditBtn.disabled = false;
         saveEditBtn.textContent = 'Speichern';
+    }
+});
+
+// ============================================================
+// ABSCHNITT 14c: TAGS / KATEGORIEN (v2.2)
+// ============================================================
+// Jeder Bericht kann mehrere Tags bekommen (z.B. "SMT", "Wartung").
+// Tags werden:
+//   - In Firestore im Feld "tags" (Array) gespeichert
+//   - In der Tag-Liste des Users (localStorage) fuer Vorschlaege gepflegt
+
+/**
+ * Rendert die Tags des aktuell geoeffneten Berichts.
+ */
+function renderReportTags() {
+    if (!currentActiveReport) return;
+    const tags = currentActiveReport.tags || [];
+    reportTagsDisplay.innerHTML = '';
+
+    if (tags.length === 0) {
+        reportTagsDisplay.innerHTML = '<span class="no-tags">Keine Tags</span>';
+        return;
+    }
+
+    tags.forEach(tag => {
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.innerHTML = `
+            <span class="tag-chip-label">${escapeHTML(tag)}</span>
+            <button class="tag-remove" data-tag="${escapeHTML(tag)}" title="Entfernen">&times;</button>
+        `;
+        chip.querySelector('.tag-remove').addEventListener('click', () => removeTagFromReport(tag));
+        reportTagsDisplay.appendChild(chip);
+    });
+}
+
+/**
+ * Fuegt dem aktuellen Bericht ein Tag hinzu.
+ * @param {string} tag
+ */
+async function addTagToReport(tag) {
+    if (!currentActiveReport) return;
+    if (!isValidTag(tag)) {
+        toast.warning('Tag ist ungueltig.');
+        return;
+    }
+
+    const currentTags = currentActiveReport.tags || [];
+    const cleanTag = tag.trim();
+    if (currentTags.includes(cleanTag)) {
+        toast.info('Tag ist bereits zugewiesen.');
+        return;
+    }
+    if (currentTags.length >= TAG_LIMITS.MAX_TAGS) {
+        toast.warning(`Maximal ${TAG_LIMITS.MAX_TAGS} Tags pro Bericht.`);
+        return;
+    }
+
+    try {
+        // In der globalen Tag-Liste merken (fuer Vorschlaege)
+        addTag(cleanTag);
+
+        // In Firestore updaten
+        const newTags = [...currentTags, cleanTag];
+        await updateReport(currentActiveReportId, { tags: newTags });
+
+        // UI aktualisieren
+        currentActiveReport.tags = newTags;
+        renderReportTags();
+        await displayReportsList();
+
+        toast.success(`Tag "${cleanTag}" hinzugefuegt.`);
+    } catch (err) {
+        console.error('Tag-Fehler:', err.name);
+        toast.error('Tag konnte nicht gespeichert werden.');
+    }
+}
+
+/**
+ * Entfernt ein Tag vom aktuellen Bericht.
+ * @param {string} tag
+ */
+async function removeTagFromReport(tag) {
+    if (!currentActiveReport) return;
+    try {
+        const newTags = (currentActiveReport.tags || []).filter(t => t !== tag);
+        await updateReport(currentActiveReportId, { tags: newTags });
+        currentActiveReport.tags = newTags;
+        renderReportTags();
+        await displayReportsList();
+        toast.info(`Tag "${tag}" entfernt.`);
+    } catch (err) {
+        console.error('Tag-Remove-Fehler:', err.name);
+        toast.error('Tag konnte nicht entfernt werden.');
+    }
+}
+
+/**
+ * Zeigt die Vorschlagsliste fuer Tags an (vorhandene Tags).
+ */
+function renderTagSuggestions() {
+    const query = (tagInput.value || '').toLowerCase();
+    const allTags = getAllTags();
+    const currentTags = currentActiveReport?.tags || [];
+    const unused = allTags.filter(t => !currentTags.includes(t));
+    const filtered = query ? unused.filter(t => t.toLowerCase().includes(query)) : unused.slice(0, 5);
+
+    tagSuggestions.innerHTML = '';
+    if (filtered.length === 0) {
+        tagSuggestions.innerHTML = '<div class="tag-suggestion-empty">Keine Vorschlaege</div>';
+        return;
+    }
+
+    filtered.forEach(tag => {
+        const suggestion = document.createElement('div');
+        suggestion.className = 'tag-suggestion';
+        suggestion.textContent = tag;
+        suggestion.addEventListener('click', () => {
+            addTagToReport(tag);
+            tagInput.value = '';
+            hideTagInput();
+        });
+        tagSuggestions.appendChild(suggestion);
+    });
+}
+
+/**
+ * Zeigt das Tag-Eingabefeld.
+ */
+function showTagInput() {
+    tagInputArea.classList.remove('hidden');
+    tagInput.value = '';
+    renderTagSuggestions();
+    setTimeout(() => tagInput.focus(), 100);
+}
+
+/**
+ * Versteckt das Tag-Eingabefeld.
+ */
+function hideTagInput() {
+    tagInputArea.classList.add('hidden');
+    tagSuggestions.innerHTML = '';
+}
+
+// Tag-Button klickt -> Eingabefeld oeffnen
+addTagBtn.addEventListener('click', showTagInput);
+
+// Tippen -> Vorschlaege filtern
+tagInput.addEventListener('input', renderTagSuggestions);
+
+// Enter -> neuen Tag hinzufuegen
+tagInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const value = tagInput.value.trim();
+        if (value) {
+            addTagToReport(value);
+            tagInput.value = '';
+            hideTagInput();
+        }
+    } else if (e.key === 'Escape') {
+        hideTagInput();
     }
 });
 

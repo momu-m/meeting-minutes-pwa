@@ -210,6 +210,23 @@
                         <button id="close-detail-btn" class="close-button">&times;</button>
                     </div>
                 </div>
+                <!-- Tag-Verwaltung fuer diesen Bericht -->
+                <div class="report-tags-section">
+                    <div class="tag-section-header">
+                        <span class="tag-section-label">Kategorien</span>
+                        <button id="add-tag-btn" class="text-button-small">+ Tag</button>
+                    </div>
+                    <div id="report-tags-display" class="tags-list">
+                        <!-- Tags werden hier gerendert -->
+                    </div>
+                    <!-- Tag-Auswahl (initial versteckt) -->
+                    <div id="tag-input-area" class="tag-input-area hidden">
+                        <input type="text" id="tag-input" placeholder="Neues Tag eingeben (Enter zum Hinzufuegen)" maxlength="30">
+                        <div id="tag-suggestions" class="tag-suggestions">
+                            <!-- Vorhandene Tags als Vorschlaege -->
+                        </div>
+                    </div>
+                </div>
                 <div class="modal-body detail-body" id="detail-body-content">
                     <!-- Berichtsinhalt wird hier dynamisch gerendert -->
                 </div>

@@ -27,12 +27,16 @@ service cloud.firestore {
                               && request.auth.uid == userId
                               // Schema pruefen: nur erlaubte Felder
                               && request.resource.data.keys().hasAll(['id', 'title', 'date', 'content'])
-                              && request.resource.data.keys().hasOnly(['id', 'title', 'date', 'content', 'provider', 'createdAt', 'lastEdited'])
+                              && request.resource.data.keys().hasOnly(['id', 'title', 'date', 'content', 'provider', 'createdAt', 'lastEdited', 'tags'])
                               // Typen pruefen
                               && request.resource.data.id is int
                               && request.resource.data.title is string
                               && request.resource.data.date is string
                               && request.resource.data.content is string
+                              // tags ist optional, muss aber Array aus Strings sein
+                              && (!('tags' in request.resource.data) ||
+                                  (request.resource.data.tags is list &&
+                                   request.resource.data.tags.size() <= 10))
                               // Groessen beschraenken (Schutz vor Missbrauch)
                               && request.resource.data.title.size() < 200
                               && request.resource.data.content.size() < 50000;  // max 50KB Text

@@ -1090,3 +1090,170 @@ body {
 .clear-search:hover {
     background: rgba(255, 255, 255, 0.2);
 }
+
+/* ============================================================
+   v2.2 TAGS / KATEGORIEN
+   ============================================================ */
+
+/* Tag-Sektion im Detail-Modal */
+.report-tags-section {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-glass);
+    margin-bottom: 12px;
+}
+
+.tag-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.tag-section-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* Kleiner Text-Button ( fuer "+ Tag") */
+.text-button-small {
+    background: none;
+    border: none;
+    color: var(--accent-color);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.text-button-small:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* Liste der angezeigten Tags (Chips) */
+.tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 24px;
+    align-items: center;
+}
+
+.no-tags {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-style: italic;
+}
+
+/* Tag-Chip im Detail (mit Remove-Button) */
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-color);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.tag-chip-label {
+    pointer-events: none;
+}
+
+.tag-remove {
+    background: none;
+    border: none;
+    color: var(--accent-color);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 0 0 2px;
+    opacity: 0.6;
+}
+
+.tag-remove:hover {
+    opacity: 1;
+    color: var(--danger-color);
+}
+
+/* Tag-Chip klein in der Berichtsliste */
+.tag-chip-small {
+    display: inline-block;
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--accent-color);
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+.tag-more {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.report-tags {
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+/* Tag-Eingabearea */
+.tag-input-area {
+    margin-top: 8px;
+}
+
+#tag-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    color: var(--text-main);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+#tag-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* Vorschlagsliste */
+.tag-suggestions {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.tag-suggestion {
+    background: var(--bg-secondary);
+    color: var(--text-main);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid var(--border-glass);
+    transition: var(--transition-smooth);
+}
+
+.tag-suggestion:hover {
+    background: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.tag-suggestion-empty {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-style: italic;
+}
