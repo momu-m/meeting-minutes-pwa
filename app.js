@@ -22,7 +22,7 @@ import { toast } from './services/notify.js';
 import { renderMarkdownToHTML, extractTitle, escapeHTML } from './utils/markdown.js';
 import { formatSwissDateTime, formatDuration, korrigiereSchweizerRechtschreibung } from './utils/format.js';
 import { exportMarkdownToDocx } from './services/docx-export.js';
-import { saveAudio, getAudio, hasAudio, deleteAudio } from './services/audio-store.js';
+import { saveAudio, getAudio, hasAudio, deleteAudio, clearAllAudios } from './services/audio-store.js';
 import { getAllTags, addTag, isValidTag, TAG_LIMITS } from './services/tags.js';
 import {
     hasMasterPassword, isUnlocked, setupMasterPassword,
@@ -548,10 +548,16 @@ lockVaultBtn.addEventListener('click', () => {
  * Kompletter Reset (Passwort vergessen).
  */
 resetVaultBtn.addEventListener('click', async () => {
-    if (!confirm('Wirklich alle API-Keys und das Master-Passwort loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden.')) {
+    if (!confirm('Wirklich alle API-Keys, Audios und das Master-Passwort loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden.')) {
         return;
     }
-    resetVault();
+    try {
+        resetVault();
+        // Auch verschluesselte Audios loeschen (sind ohne Master-Key unlesbar)
+        await clearAllAudios();
+    } catch (err) {
+        console.warn('Audio-Loeschung fehlgeschlagen:', err.name);
+    }
     toast.info('Vault zurueckgesetzt. Bitte neues Master-Passwort einrichten.');
     updatePasswordStatus();
     openUnlockModal(
@@ -1273,8 +1279,9 @@ async function addTagToReport(tag) {
         return;
     }
 
-    const currentTags = currentActiveReport.tags || [];
     const cleanTag = tag.trim();
+    const currentTags = currentActiveReport.tags || [];
+
     if (currentTags.includes(cleanTag)) {
         toast.info('Tag ist bereits zugewiesen.');
         return;
@@ -1283,6 +1290,13 @@ async function addTagToReport(tag) {
         toast.warning(`Maximal ${TAG_LIMITS.MAX_TAGS} Tags pro Bericht.`);
         return;
     }
+
+    // Mutex: verhindert Race-Condition bei schnellem Doppelklick
+    if (tagUpdateInProgress) {
+        toast.info('Bitte kurz warten - letzte Aenderung wird gespeichert.');
+        return;
+    }
+    tagUpdateInProgress = true;
 
     try {
         // In der globalen Tag-Liste merken (fuer Vorschlaege)
@@ -1301,6 +1315,8 @@ async function addTagToReport(tag) {
     } catch (err) {
         console.error('Tag-Fehler:', err.name);
         toast.error('Tag konnte nicht gespeichert werden.');
+    } finally {
+        tagUpdateInProgress = false;
     }
 }
 
@@ -1310,6 +1326,14 @@ async function addTagToReport(tag) {
  */
 async function removeTagFromReport(tag) {
     if (!currentActiveReport) return;
+
+    // Mutex: verhindert Race-Condition
+    if (tagUpdateInProgress) {
+        toast.info('Bitte kurz warten.');
+        return;
+    }
+    tagUpdateInProgress = true;
+
     try {
         const newTags = (currentActiveReport.tags || []).filter(t => t !== tag);
         await updateReport(currentActiveReportId, { tags: newTags });
@@ -1320,8 +1344,13 @@ async function removeTagFromReport(tag) {
     } catch (err) {
         console.error('Tag-Remove-Fehler:', err.name);
         toast.error('Tag konnte nicht entfernt werden.');
+    } finally {
+        tagUpdateInProgress = false;
     }
 }
+
+// Flag fuer Mutex (verhindert parallele Tag-Updates)
+let tagUpdateInProgress = false;
 
 /**
  * Zeigt die Vorschlagsliste fuer Tags an (vorhandene Tags).

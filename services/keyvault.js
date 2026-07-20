@@ -246,12 +246,15 @@ export function deleteApiKey(providerId, keyId) {
 /**
  * Setzt den kompletten Vault zurueck (Passwort vergessen Funktion).
  * ACHTUNG: Alle gespeicherten API-Keys gehen verloren!
+ *
+ * WICHTIG (v2.2.1): Die Audio-Datenbank (IndexedDB) kann hier NICHT
+ * geloescht werden, weil keyvault.js nicht audio-store.js importieren
+ * darf (Zirkel-Import, da audio-store keyvault importiert).
+ * Aufrufer muss zusaetzlich clearAllAudios() aus audio-store.js rufen.
  */
 export function resetVault() {
     localStorage.removeItem(META_KEY);
     localStorage.removeItem(DATA_KEY);
-    // Security-Fix: SESSION_KEY nicht mehr genutzt seit v2.0.1 (RAM-only Key).
-    // sessionStorage bleibt sauber, nichts zu loeschen.
     activeKey = null;
 }
 
@@ -262,77 +265,57 @@ export function resetVault() {
 // Strategie, Kunden). Deshalb werden sie ebenfalls mit AES-GCM
 // verschluesselt - mit demselben Schluessel wie die API-Keys.
 //
-// Da Audios bis zu 20 MB gross sein koennen, nutzen wir die
-// subtile API direkt auf dem Arraybuffer (performanter).
-
-import { encryptString, decryptString } from './crypto.js';
-
-// Eigene Hilfsfunktionen fuer Binaerdaten (nicht Strings)
-async function encryptBytes(buffer, key) {
-    const iv = crypto.getRandomValues(new Uint8Array(12));  // 96-Bit IV
-    const encrypted = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: iv },
-        key,
-        buffer
-    );
-    return { iv, encrypted };
-}
-
-async function decryptBytes(iv, encrypted, key) {
-    return crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: iv },
-        key,
-        encrypted
-    );
-}
-
-// Base64 Hilfsfunktionen (Browser-kompatibel)
-function bufToBase64(buf) {
-    const bytes = new Uint8Array(buf);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-}
-
-function base64ToBuf(base64) {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-}
+// PERFORMANCE-HINWEIS (v2.2.1 Fix):
+// Native Blobs/ArrayBuffers werden direkt verwendet - keine Base64-
+// Konvertierung. Grund: Base64-Aufbau bei 20MB Audio ist O(n²) und
+// crasht Mobile-Safari wegen RAM-Ueberlauf.
 
 /**
  * Verschluesselt einen ArrayBuffer mit dem aktiven Master-Key.
+ * Gibt native Blobs zurueck (kein Base64!) - performant fuer grosse Daten.
  *
  * @param {ArrayBuffer} buffer - Die Binaerdaten (z.B. Audio)
- * @returns {Promise<{ivBase64: string, ciphertextBase64: string}>}
+ * @returns {Promise<{ivBlob: Blob, ciphertextBlob: Blob}>}
  * @throws {Error} Wenn Vault gesperrt ist
  */
 export async function encryptWithVaultKey(buffer) {
     if (!activeKey) throw new Error('Vault ist gesperrt - Audio kann nicht verschluesselt werden.');
 
-    const { iv, encrypted } = await encryptBytes(buffer, activeKey);
+    // 1. Frischer 96-Bit IV (Zufall pro Verschluesselung)
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+
+    // 2. Verschluesseln direkt auf ArrayBuffer
+    const encrypted = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: iv },
+        activeKey,
+        buffer
+    );
+
+    // 3. Native Blobs zurueckgeben (IndexedDB kann die direkt speichern)
     return {
-        ivBase64: bufToBase64(iv),
-        ciphertextBase64: bufToBase64(encrypted)
+        ivBlob: new Blob([iv]),
+        ciphertextBlob: new Blob([encrypted])
     };
 }
 
 /**
  * Entschluesselt Daten mit dem aktiven Master-Key.
+ * Akzeptiert native Blobs und gibt ArrayBuffer zurueck.
  *
- * @param {string} ivBase64       - IV als Base64
- * @param {string} ciphertextBase64 - Verschluesselte Daten als Base64
+ * @param {Blob} ivBlob       - IV als Blob
+ * @param {Blob} ciphertextBlob - Verschluesselte Daten als Blob
  * @returns {Promise<ArrayBuffer>} Die Klartext-Binaerdaten
  */
-export async function decryptWithVaultKey(ivBase64, ciphertextBase64) {
+export async function decryptWithVaultKey(ivBlob, ciphertextBlob) {
     if (!activeKey) throw new Error('Vault ist gesperrt - Audio kann nicht geladen werden.');
 
-    const iv = base64ToBuf(ivBase64);
-    const ciphertext = base64ToBuf(ciphertextBase64);
-    return decryptBytes(iv, ciphertext, activeKey);
+    // Blobs in ArrayBuffers umwandeln
+    const iv = await ivBlob.arrayBuffer();
+    const ciphertext = await ciphertextBlob.arrayBuffer();
+
+    return crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv },
+        activeKey,
+        ciphertext
+    );
 }

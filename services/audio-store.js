@@ -4,16 +4,16 @@
 // Speichert Audiodateien lokal in IndexedDB - AES-GCM verschluesselt
 // mit dem Master-Passwort des Vaults.
 //
-// Warum Verschluesselung?
-//   Audios enthalten oft sensible Meeting-Inhalte (Personalia,
-//   Strategie, Kundendaten). IndexedDB ist dauerhaft lokal
-//   gespeichert und unverschlusselt fuer jeden mit Browser-Zugriff
-//   sichtbar.
+// PERFORMANCE-HINWEIS (v2.2.1 Fix):
+// Native Blobs/ArrayBuffers werden direkt in IndexedDB gespeichert
+// (keine Base64-Konvertierung). Grund: Base64-Aufbau bei 20MB Audio
+// ist O(n²) und crasht Mobile-Safari wegen RAM-Ueberlauf.
+// IndexedDB unterstuetzt structured clone von Blobs nativ.
 //
 // Schema:
 //   ObjectStore "audios"
 //     keyPath: "reportId"
-//     value:   { reportId, ivBase64, ciphertextBase64, mimeType, size, createdAt }
+//     value:   { reportId, ivBlob, ciphertextBlob, mimeType, size, createdAt }
 //
 // WICHTIG: Vor dem ersten Gebrauch muss der Vault entsperrt sein
 //          (Master-Passwort-Eingabe). Sonst schlagen Save/Load fehl.
@@ -73,10 +73,10 @@ export async function saveAudio(reportId, audioBlob) {
     // 1. Blob in ArrayBuffer umwandeln (fuer Verschluesselung noetig)
     const arrayBuffer = await blobToArrayBuffer(audioBlob);
 
-    // 2. Verschluesseln mit dem aktiven Vault-Key
-    const { ivBase64, ciphertextBase64 } = await encryptWithVaultKey(arrayBuffer);
+    // 2. Verschluesseln - gibt native Blobs zurueck (kein Base64!)
+    const { ivBlob, ciphertextBlob } = await encryptWithVaultKey(arrayBuffer);
 
-    // 3. In IndexedDB speichern (nur verschluesselte Daten!)
+    // 3. In IndexedDB speichern - Blobs werden von IDB nativ unterstuetzt
     const db = await openDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -84,8 +84,8 @@ export async function saveAudio(reportId, audioBlob) {
 
         const record = {
             reportId: reportId,
-            ivBase64: ivBase64,
-            ciphertextBase64: ciphertextBase64,
+            ivBlob: ivBlob,
+            ciphertextBlob: ciphertextBlob,
             mimeType: audioBlob.type || 'audio/mp4',
             size: audioBlob.size,
             createdAt: Date.now()
@@ -124,8 +124,8 @@ export async function getAudio(reportId) {
 
     if (!record) return null;
 
-    // 2. Daten entschluesseln
-    const decrypted = await decryptWithVaultKey(record.ivBase64, record.ciphertextBase64);
+    // 2. Daten entschluesseln (akzeptiert jetzt Blobs direkt)
+    const decrypted = await decryptWithVaultKey(record.ivBlob, record.ciphertextBlob);
 
     // 3. Zurueck in ein Blob umwandeln
     return new Blob([decrypted], { type: record.mimeType });
@@ -165,5 +165,18 @@ export async function deleteAudio(reportId) {
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
         tx.oncomplete = () => db.close();
+    });
+}
+
+/**
+ * Loescht die komplette Audio-Datenbank (z.B. beim Vault-Reset).
+ * @returns {Promise<void>}
+ */
+export async function clearAllAudios() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(DB_NAME);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => resolve();  // auch wenn blockiert, OK
     });
 }
