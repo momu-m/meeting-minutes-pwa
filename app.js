@@ -21,6 +21,7 @@ import { saveReport, getAllReports, deleteReport, initAuth, getCurrentUserId, up
 import { toast } from './services/notify.js';
 import { renderMarkdownToHTML, extractTitle, escapeHTML } from './utils/markdown.js';
 import { formatSwissDateTime, formatDuration, korrigiereSchweizerRechtschreibung } from './utils/format.js';
+import { exportMarkdownToDocx } from './services/docx-export.js';
 import {
     hasMasterPassword, isUnlocked, setupMasterPassword,
     unlock, lock, tryRestoreSession,
@@ -92,6 +93,7 @@ const detailBodyContent = document.getElementById('detail-body-content');
 const copyReportBtn = document.getElementById('copy-report-btn');
 const shareReportBtn = document.getElementById('share-report-btn');
 const pdfReportBtn = document.getElementById('pdf-report-btn');
+const docxReportBtn = document.getElementById('docx-report-btn');
 const editReportBtn = document.getElementById('edit-report-btn');
 const deleteReportBtn = document.getElementById('delete-report-btn');
 
@@ -835,6 +837,22 @@ function openReportDetail(report) {
 
 pdfReportBtn.addEventListener('click', () => {
     window.print();
+});
+
+// DOCX-Export: Lädt Markdown in eine echte Word-Datei um
+docxReportBtn.addEventListener('click', async () => {
+    if (!currentActiveReport) return;
+    try {
+        docxReportBtn.disabled = true;
+        toast.info('Word-Dokument wird erstellt...');
+        await exportMarkdownToDocx(currentActiveReport.content, currentActiveReport.title);
+        toast.success('DOCX-Export fertig.');
+    } catch (err) {
+        console.error('DOCX-Fehler:', err.name);
+        toast.error('DOCX-Export fehlgeschlagen.');
+    } finally {
+        docxReportBtn.disabled = false;
+    }
 });
 
 shareReportBtn.addEventListener('click', async () => {
