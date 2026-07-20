@@ -907,3 +907,71 @@ body {
     margin-top: 6px;
     line-height: 1.4;
 }
+
+/* ============================================================
+   v2.1 EDIT-MODAL
+   ============================================================ */
+
+/* Textarea fuer Markdown-Bearbeitung */
+.form-group textarea {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg-primary);
+    color: var(--text-main);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    resize: vertical;
+    min-height: 200px;
+}
+
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* Kleiner Primary-Button (fuer Edit-Speichern) */
+.primary-button-small {
+    padding: 8px 16px;
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.primary-button-small:hover, .primary-button-small:active {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.primary-button-small:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Text-Input (fuer Titel-Eingabe im Edit-Modal) */
+.form-group input[type="text"], .form-group input[type="password"] {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg-secondary);
+    color: var(--text-main);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.form-group input[type="text"]:focus, .form-group input[type="password"]:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}

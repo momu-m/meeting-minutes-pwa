@@ -17,7 +17,7 @@ import { db, auth, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, 
 
 // --- Eigene Services ---
 import { getAllProviders, getProviderById, getDefaultProvider } from './providers/base.js';
-import { saveReport, getAllReports, deleteReport, initAuth, getCurrentUserId } from './services/db.js';
+import { saveReport, getAllReports, deleteReport, initAuth, getCurrentUserId, updateReport } from './services/db.js';
 import { toast } from './services/notify.js';
 import { renderMarkdownToHTML, extractTitle, escapeHTML } from './utils/markdown.js';
 import { formatSwissDateTime, formatDuration, korrigiereSchweizerRechtschreibung } from './utils/format.js';
@@ -92,7 +92,15 @@ const detailBodyContent = document.getElementById('detail-body-content');
 const copyReportBtn = document.getElementById('copy-report-btn');
 const shareReportBtn = document.getElementById('share-report-btn');
 const pdfReportBtn = document.getElementById('pdf-report-btn');
+const editReportBtn = document.getElementById('edit-report-btn');
 const deleteReportBtn = document.getElementById('delete-report-btn');
+
+// Edit-Modal
+const editModal = document.getElementById('edit-modal');
+const editTitleInput = document.getElementById('edit-title-input');
+const editContentInput = document.getElementById('edit-content-input');
+const saveEditBtn = document.getElementById('save-edit-btn');
+const cancelEditBtn = document.getElementById('cancel-edit-btn');
 
 // ============================================================
 // ABSCHNITT 2: APP-INITIALISIERUNG
@@ -872,6 +880,90 @@ deleteReportBtn.addEventListener('click', async () => {
         toast.success('Protokoll geloescht.');
     } catch (err) {
         toast.error('Loeschen fehlgeschlagen: ' + err.message);
+    }
+});
+
+// ============================================================
+// ABSCHNITT 14b: PROTOKOLL BEARBEITEN (Edit)
+// ============================================================
+// Oeffnet ein Edit-Modal mit dem aktuellen Markdown-Inhalt.
+// Der Nutzer kann Titel und Inhalt frei aendern.
+// Beim Speichern wird das Dokument in Firestore aktualisiert.
+
+/**
+ * Aktuell geladener Bericht (fuer Edit-Modal).
+ * Wird beim Oeffnen des Detail-Modals gesetzt.
+ */
+let currentActiveReport = null;
+
+// Original-Funktion erweitern: Beim Oeffnen auch Bericht-Objekt merken
+const originalOpenReportDetail = openReportDetail;
+
+/**
+ * Oeffnet die Detailansicht und merkt sich den Bericht fuer Edit.
+ */
+function openReportDetailExtended(report) {
+    currentActiveReport = report;
+    originalOpenReportDetail(report);
+}
+
+// Edit-Button: Oeffnet das Edit-Modal mit vorausgefuellten Werten
+editReportBtn.addEventListener('click', () => {
+    if (!currentActiveReport) return;
+    editTitleInput.value = currentActiveReport.title || '';
+    editContentInput.value = currentActiveReport.content || '';
+    showModal(editModal);
+    setTimeout(() => editTitleInput.focus(), 100);
+});
+
+// Abbrechen-Button
+cancelEditBtn.addEventListener('click', () => hideModal(editModal));
+
+// Speichern-Button: Aenderungen in Firestore schreiben
+saveEditBtn.addEventListener('click', async () => {
+    if (!currentActiveReportId) return;
+
+    const newTitle = editTitleInput.value.trim();
+    const newContent = editContentInput.value;
+
+    if (!newTitle) {
+        toast.error('Titel darf nicht leer sein.');
+        return;
+    }
+    if (!newContent.trim()) {
+        toast.error('Inhalt darf nicht leer sein.');
+        return;
+    }
+
+    try {
+        saveEditBtn.disabled = true;
+        saveEditBtn.textContent = 'Speichere...';
+
+        // Schweizer Rechtschreibung erneut korrigieren (falls manuell was mit sz eingegeben wurde)
+        const correctedContent = korrigiereSchweizerRechtschreibung(newContent);
+
+        // In Firestore aktualisieren
+        await updateReport(currentActiveReportId, {
+            title: newTitle,
+            content: correctedContent,
+            lastEdited: Date.now()
+        });
+
+        // UI aktualisieren
+        currentActiveReport.title = newTitle;
+        currentActiveReport.content = correctedContent;
+        detailTitle.textContent = newTitle;
+        detailBodyContent.innerHTML = renderMarkdownToHTML(correctedContent);
+
+        hideModal(editModal);
+        await displayReportsList();
+        toast.success('Aenderungen gespeichert.');
+    } catch (err) {
+        console.error('Edit-Fehler:', err.name);
+        toast.error('Speichern fehlgeschlagen.');
+    } finally {
+        saveEditBtn.disabled = false;
+        saveEditBtn.textContent = 'Speichern';
     }
 });
 

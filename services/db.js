@@ -82,3 +82,39 @@ export async function deleteReport(id) {
     const docRef = doc(db, `users/${userId}/reports`, id.toString());
     await deleteDoc(docRef);
 }
+
+/**
+ * Aktualisiert einen bestehenden Bericht (Editieren).
+ * Nur die Felder im updates-Objekt werden geaendert.
+ *
+ * @param {string|number} id - Die ID des Berichts
+ * @param {Object} updates - Z.B. { content: "...", title: "..." }
+ */
+export async function updateReport(id, updates) {
+    const userId = getCurrentUserId();
+    if (!userId) throw new Error('Nicht eingeloggt.');
+
+    const docRef = doc(db, `users/${userId}/reports`, id.toString());
+
+    // setDoc mit merge:true aktualisiert nur die angegebenen Felder,
+    // ohne den Rest des Dokuments zu loeschen.
+    await setDoc(docRef, updates, { merge: true });
+}
+
+/**
+ * Holt einen einzelnen Bericht anhand seiner ID.
+ * @param {string|number} id
+ * @returns {Promise<Object|null>}
+ */
+export async function getReport(id) {
+    const userId = getCurrentUserId();
+    if (!userId) return null;
+
+    const docRef = doc(db, `users/${userId}/reports`, id.toString());
+    const snapshot = await getDocs(doc(db, `users/${userId}/reports`));
+    let result = null;
+    snapshot.forEach((d) => {
+        if (d.id === id.toString()) result = d.data();
+    });
+    return result;
+}
