@@ -110,6 +110,15 @@ const audioPlayerContainer = document.getElementById('audio-player-container');
 const audioPlayer = document.getElementById('audio-player');
 const downloadAudioBtn = document.getElementById('download-audio-btn');
 
+// Suche
+const searchBar = document.getElementById('search-bar');
+const searchInput = document.getElementById('search-input');
+const clearSearchBtn = document.getElementById('clear-search-btn');
+const reportCountBadge = document.getElementById('report-count');
+
+// Cache aller Berichte (fuer Suche ohne Roundtrip zur DB)
+let allReportsCache = [];
+
 // Zuletzt verarbeitetes Audio-Blob (fuer spaetere Speicherung)
 let lastProcessedAudioBlob = null;
 let currentAudioURL = null;
@@ -816,21 +825,83 @@ async function processAudioWithProvider(audioBlob) {
 // ============================================================
 
 async function displayReportsList() {
-    const reports = await getAllReports();
+    // Lade alle Berichte und cachen sie fuer die Suche
+    allReportsCache = await getAllReports();
+
+    // Such-Feld anzeigen, wenn es 3+ Berichte gibt (lohnt sich)
+    if (allReportsCache.length >= 3) {
+        searchBar.classList.remove('hidden');
+    } else {
+        searchBar.classList.add('hidden');
+    }
+
+    // Anzahl-Badge aktualisieren
+    if (allReportsCache.length > 0) {
+        reportCountBadge.textContent = allReportsCache.length;
+        reportCountBadge.classList.remove('hidden');
+    } else {
+        reportCountBadge.classList.add('hidden');
+    }
+
+    // Aktuellen Such-Filter anwenden
+    const query = searchInput.value.trim().toLowerCase();
+    const filtered = query ? filterReports(allReportsCache, query) : allReportsCache;
+
+    renderReportsList(filtered);
+}
+
+/**
+ * Filtert Berichte nach Suchbegriff (Titel, Inhalt, Datum, Provider).
+ *
+ * @param {Array} reports - Alle Berichte
+ * @param {string} query  - Suchbegriff (kleingeschrieben)
+ * @returns {Array} Gefilterte Berichte
+ */
+function filterReports(reports, query) {
+    return reports.filter(r => {
+        const haystack = [
+            r.title || '',
+            r.content || '',
+            r.date || '',
+            r.provider || ''
+        ].join(' ').toLowerCase();
+        return haystack.includes(query);
+    });
+}
+
+/**
+ * Rendert eine Liste von Berichten ins DOM.
+ * @param {Array} reports - Die zu rendernden Berichte
+ */
+function renderReportsList(reports) {
     reportsList.innerHTML = '';
 
-    if (reports.length === 0) {
+    if (allReportsCache.length === 0) {
+        // Gar keine Berichte vorhanden
         emptyState.classList.remove('hidden');
+        emptyState.querySelector('p').textContent = 'Noch keine Protokolle vorhanden.';
+        emptyState.querySelector('.subtitle').textContent = 'Nehmen Sie Ihr erstes Meeting auf, um ein Protokoll zu erstellen.';
         return;
     }
 
     emptyState.classList.add('hidden');
 
+    if (reports.length === 0) {
+        // Berichte vorhanden, aber Suche liefert keine Treffer
+        const noMatch = document.createElement('div');
+        noMatch.className = 'empty-state';
+        noMatch.innerHTML = `
+            <p>Keine Treffer fuer "${escapeHTML(searchInput.value)}".</p>
+            <p class="subtitle">Aendere die Suche oder loesche sie.</p>
+        `;
+        reportsList.appendChild(noMatch);
+        return;
+    }
+
     reports.forEach(report => {
         const item = document.createElement('div');
         item.className = 'report-item';
 
-        // Provider-Badge fuer den Bericht (falls gespeichert)
         const providerBadge = report.provider
             ? `<span class="report-provider">${escapeHTML(report.provider)}</span>`
             : '';
@@ -847,6 +918,23 @@ async function displayReportsList() {
         reportsList.appendChild(item);
     });
 }
+
+// Live-Suche: bei jeder Eingabe filtern
+searchInput.addEventListener('input', () => {
+    const query = searchInput.value.trim().toLowerCase();
+    clearSearchBtn.classList.toggle('hidden', query.length === 0);
+
+    const filtered = query ? filterReports(allReportsCache, query) : allReportsCache;
+    renderReportsList(filtered);
+});
+
+// Suche loeschen
+clearSearchBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    clearSearchBtn.classList.add('hidden');
+    renderReportsList(allReportsCache);
+    searchInput.focus();
+});
 
 function openReportDetail(report) {
     currentActiveReportId = report.id;
