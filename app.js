@@ -124,6 +124,53 @@ const tagInput = document.getElementById('tag-input');
 const tagSuggestions = document.getElementById('tag-suggestions');
 const reportTagsDisplay = document.getElementById('report-tags-display');
 
+// Sortierung
+const sortBar = document.getElementById('sort-bar');
+const sortSelect = document.getElementById('sort-select');
+const LS_SORT_KEY = 'sort_preference';
+
+/**
+ * Holt die gespeicherte Sortier-Einstellung.
+ * @returns {string} Sort-Key, z.B. "date-desc"
+ */
+function getSortPreference() {
+    return localStorage.getItem(LS_SORT_KEY) || 'date-desc';
+}
+
+/**
+ * Sortiert eine Kopie der Berichte nach der gewaehlten Methode.
+ *
+ * @param {Array} reports  - Die zu sortierenden Berichte
+ * @param {string} sortKey - Sortier-Methode
+ * @returns {Array} Neue sortierte Liste
+ */
+function sortReports(reports, sortKey) {
+    const sorted = [...reports];
+    switch (sortKey) {
+        case 'date-asc':
+            return sorted.sort((a, b) => (a.id || 0) - (b.id || 0));
+        case 'date-desc':
+            return sorted.sort((a, b) => (b.id || 0) - (a.id || 0));
+        case 'title-asc':
+            return sorted.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+        case 'title-desc':
+            return sorted.sort((a, b) => (b.title || '').localeCompare(a.title || '', 'de'));
+        case 'provider-asc':
+            return sorted.sort((a, b) => (a.provider || '').localeCompare(b.provider || '', 'de'));
+        default:
+            return sorted;
+    }
+}
+
+// Bei Sortier-Aenderung: Preference speichern und Liste neu rendern
+sortSelect.addEventListener('change', () => {
+    localStorage.setItem(LS_SORT_KEY, sortSelect.value);
+    const query = searchInput.value.trim().toLowerCase();
+    const filtered = query ? filterReports(allReportsCache, query) : allReportsCache;
+    const sorted = sortReports(filtered, sortSelect.value);
+    renderReportsList(sorted);
+});
+
 // Cache aller Berichte (fuer Suche ohne Roundtrip zur DB)
 let allReportsCache = [];
 
@@ -836,11 +883,15 @@ async function displayReportsList() {
     // Lade alle Berichte und cachen sie fuer die Suche
     allReportsCache = await getAllReports();
 
-    // Such-Feld anzeigen, wenn es 3+ Berichte gibt (lohnt sich)
+    // Such- und Sortier-Feld anzeigen, wenn es 3+ Berichte gibt
     if (allReportsCache.length >= 3) {
         searchBar.classList.remove('hidden');
+        sortBar.classList.remove('hidden');
+        // Gespeicherte Sortier-Preference laden
+        sortSelect.value = getSortPreference();
     } else {
         searchBar.classList.add('hidden');
+        sortBar.classList.add('hidden');
     }
 
     // Anzahl-Badge aktualisieren
@@ -851,11 +902,12 @@ async function displayReportsList() {
         reportCountBadge.classList.add('hidden');
     }
 
-    // Aktuellen Such-Filter anwenden
+    // Aktuellen Such-Filter + Sortierung anwenden
     const query = searchInput.value.trim().toLowerCase();
     const filtered = query ? filterReports(allReportsCache, query) : allReportsCache;
+    const sorted = sortReports(filtered, getSortPreference());
 
-    renderReportsList(filtered);
+    renderReportsList(sorted);
 }
 
 /**
@@ -940,20 +992,22 @@ function renderReportsList(reports) {
     });
 }
 
-// Live-Suche: bei jeder Eingabe filtern
+// Live-Suche: bei jeder Eingabe filtern + sortieren
 searchInput.addEventListener('input', () => {
     const query = searchInput.value.trim().toLowerCase();
     clearSearchBtn.classList.toggle('hidden', query.length === 0);
 
     const filtered = query ? filterReports(allReportsCache, query) : allReportsCache;
-    renderReportsList(filtered);
+    const sorted = sortReports(filtered, getSortPreference());
+    renderReportsList(sorted);
 });
 
 // Suche loeschen
 clearSearchBtn.addEventListener('click', () => {
     searchInput.value = '';
     clearSearchBtn.classList.add('hidden');
-    renderReportsList(allReportsCache);
+    const sorted = sortReports(allReportsCache, getSortPreference());
+    renderReportsList(sorted);
     searchInput.focus();
 });
 

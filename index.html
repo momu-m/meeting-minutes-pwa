@@ -101,6 +101,18 @@
                     <button id="clear-search-btn" class="clear-search hidden" title="Suche löschen">&times;</button>
                 </div>
 
+                <!-- Sortierung -->
+                <div class="sort-bar hidden" id="sort-bar">
+                    <label for="sort-select" class="sort-label">Sortieren:</label>
+                    <select id="sort-select">
+                        <option value="date-desc">Datum (neu zuerst)</option>
+                        <option value="date-asc">Datum (alt zuerst)</option>
+                        <option value="title-asc">Titel (A-Z)</option>
+                        <option value="title-desc">Titel (Z-A)</option>
+                        <option value="provider-asc">Anbieter (A-Z)</option>
+                    </select>
+                </div>
+
                 <div class="reports-list" id="reports-list">
                     <div class="empty-state" id="empty-state">
                         <p>Noch keine Protokolle vorhanden.</p>
