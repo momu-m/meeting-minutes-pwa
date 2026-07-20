@@ -10,7 +10,7 @@
 // ============================================================
 
 // Cache-Version - bei jeder Code-Aenderung erhoehen!
-const CACHE_NAME = 'asetronics-meeting-ai-v4';
+const CACHE_NAME = 'asetronics-meeting-ai-v5';
 
 // Liste aller Dateien, die fuer Offline-Modus gecacht werden
 const ASSETS = [
@@ -38,6 +38,7 @@ const ASSETS = [
     './services/db.js',
     './services/notify.js',
     './services/docx-export.js',
+    './services/audio-store.js',
     // Utils
     './utils/markdown.js',
     './utils/format.js',

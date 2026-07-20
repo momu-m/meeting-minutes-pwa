@@ -975,3 +975,37 @@ body {
     border-color: var(--accent-color);
     box-shadow: 0 0 0 3px var(--accent-glow);
 }
+
+/* ============================================================
+   v2.1 AUDIO-PLAYER
+   ============================================================ */
+
+.audio-player-container {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-glass);
+}
+
+.audio-player-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.audio-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+#audio-player {
+    width: 100%;
+    border-radius: var(--radius-md);
+    /* Dunkler Look fuer Audio-Player */
+    background: var(--bg-primary);
+}
+
+#audio-player::-webkit-media-controls-panel {
+    background: var(--bg-secondary);
+}

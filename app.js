@@ -22,6 +22,7 @@ import { toast } from './services/notify.js';
 import { renderMarkdownToHTML, extractTitle, escapeHTML } from './utils/markdown.js';
 import { formatSwissDateTime, formatDuration, korrigiereSchweizerRechtschreibung } from './utils/format.js';
 import { exportMarkdownToDocx } from './services/docx-export.js';
+import { saveAudio, getAudio, hasAudio, deleteAudio } from './services/audio-store.js';
 import {
     hasMasterPassword, isUnlocked, setupMasterPassword,
     unlock, lock, tryRestoreSession,
@@ -103,6 +104,15 @@ const editTitleInput = document.getElementById('edit-title-input');
 const editContentInput = document.getElementById('edit-content-input');
 const saveEditBtn = document.getElementById('save-edit-btn');
 const cancelEditBtn = document.getElementById('cancel-edit-btn');
+
+// Audio-Player
+const audioPlayerContainer = document.getElementById('audio-player-container');
+const audioPlayer = document.getElementById('audio-player');
+const downloadAudioBtn = document.getElementById('download-audio-btn');
+
+// Zuletzt verarbeitetes Audio-Blob (fuer spaetere Speicherung)
+let lastProcessedAudioBlob = null;
+let currentAudioURL = null;
 
 // ============================================================
 // ABSCHNITT 2: APP-INITIALISIERUNG
@@ -741,6 +751,9 @@ async function processAudioWithProvider(audioBlob) {
             throw new Error(`Nicht alle API-Keys fuer ${currentProvider.name} gesetzt.`);
         }
 
+        // 1b. Audio-Blob fuer spaetere Speicherung referenzieren
+        lastProcessedAudioBlob = audioBlob;
+
         // 2. Vorlage laden
         const template = localStorage.getItem(LS_PROMPT_TEMPLATE) || 'standard';
 
@@ -770,6 +783,17 @@ async function processAudioWithProvider(audioBlob) {
 
         // 8. In Firestore speichern
         await saveReport(newReport);
+
+        // 8b. Audio lokal speichern (IndexedDB), damit man es wiederhoeren kann
+        if (lastProcessedAudioBlob) {
+            try {
+                await saveAudio(newReport.id, lastProcessedAudioBlob);
+                lastProcessedAudioBlob = null;  // Freigeben
+            } catch (audioErr) {
+                console.warn('Audio konnte nicht gespeichert werden:', audioErr.name);
+                // kein harter Fehler - Audio ist optional
+            }
+        }
 
         // 9. UI aktualisieren
         await displayReportsList();
@@ -826,10 +850,61 @@ async function displayReportsList() {
 
 function openReportDetail(report) {
     currentActiveReportId = report.id;
+    currentActiveReport = report;
     detailTitle.textContent = report.title;
     detailBodyContent.innerHTML = renderMarkdownToHTML(report.content);
     showModal(detailModal);
+
+    // Audio-Player anzeigen, falls Audio vorhanden
+    loadAudioForReport(report.id);
 }
+
+/**
+ * Laedt das verknuepfte Audio fuer einen Bericht und zeigt den Player.
+ * @param {number|string} reportId
+ */
+async function loadAudioForReport(reportId) {
+    // Vorherige URL freigeben
+    if (currentAudioURL) {
+        URL.revokeObjectURL(currentAudioURL);
+        currentAudioURL = null;
+    }
+
+    try {
+        const exists = await hasAudio(reportId);
+        if (!exists) {
+            audioPlayerContainer.classList.add('hidden');
+            audioPlayer.src = '';
+            return;
+        }
+
+        const blob = await getAudio(reportId);
+        if (!blob) {
+            audioPlayerContainer.classList.add('hidden');
+            return;
+        }
+
+        currentAudioURL = URL.createObjectURL(blob);
+        audioPlayer.src = currentAudioURL;
+        audioPlayerContainer.classList.remove('hidden');
+    } catch (err) {
+        console.warn('Audio konnte nicht geladen werden:', err.name);
+        audioPlayerContainer.classList.add('hidden');
+    }
+}
+
+// Audio herunterladen
+downloadAudioBtn.addEventListener('click', () => {
+    if (!currentAudioURL || !currentActiveReport) return;
+    const a = document.createElement('a');
+    a.href = currentAudioURL;
+    const safeTitle = (currentActiveReport.title || 'Audio').replace(/[^a-zA-Z0-9äöüÄÖÜ\-_ ]/g, '').trim();
+    a.download = `${safeTitle}.m4a`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast.info('Audio wird heruntergeladen.');
+});
 
 // ============================================================
 // ABSCHNITT 13: EXPORT & TEILEN
@@ -892,6 +967,8 @@ deleteReportBtn.addEventListener('click', async () => {
     if (!currentActiveReportId) return;
     if (!confirm('Dieses Protokoll wirklich loeschen?')) return;
     try {
+        // Zuerst Audio lokal loeschen (falls vorhanden)
+        try { await deleteAudio(currentActiveReportId); } catch (_) {}
         await deleteReport(currentActiveReportId);
         hideModal(detailModal);
         await displayReportsList();
