@@ -16,7 +16,7 @@
 import { db, auth, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, signInAnonymously, onAuthStateChanged } from './firebase-config.js';
 
 // --- Eigene Services ---
-import { getAllProviders, getProviderById, getDefaultProvider } from './providers/base.js';
+import { getAllProviders, getProviderById, getDefaultProvider, getProviderMeta } from './providers/base.js';
 import { saveReport, getAllReports, deleteReport, initAuth, getCurrentUserId, updateReport } from './services/db.js';
 import { toast } from './services/notify.js';
 import { renderMarkdownToHTML, extractTitle, escapeHTML } from './utils/markdown.js';
@@ -79,6 +79,21 @@ const passwordStatus = document.getElementById('password-status');
 const lockVaultBtn = document.getElementById('lock-vault-btn');
 const resetVaultBtn = document.getElementById('reset-vault-btn');
 const activeProviderBadge = document.getElementById('active-provider-badge');
+
+// Provider-Switcher (Startseite)
+const providerSwitcher = document.getElementById('provider-switcher');
+const switcherProviderIcon = document.getElementById('switcher-provider-icon');
+const switcherProviderName = document.getElementById('switcher-provider-name');
+const switcherProviderStatus = document.getElementById('switcher-provider-status');
+const providerSheet = document.getElementById('provider-sheet');
+const providerSheetBody = document.getElementById('provider-sheet-body');
+const closeProviderSheetBtn = document.getElementById('close-provider-sheet-btn');
+
+// Vault-Status-Indikator im Header
+const vaultStatusIndicator = document.getElementById('vault-status-indicator');
+
+// Schallwellen-Animation
+const waveBars = document.getElementById('wave-bars');
 
 // Unlock-Modal
 const unlockModal = document.getElementById('unlock-modal');
@@ -352,27 +367,174 @@ function loadSettingsUI() {
 
 /**
  * Aktualisiert die Sicherheits-Status-Anzeige.
+ * Setzt auch den kleinen Vault-Punkt im Header (gruen = entsperrt).
  */
 function updatePasswordStatus() {
     if (!hasMasterPassword()) {
         passwordStatus.innerHTML = '<span class="status-warning">Kein Master-Passwort eingerichtet.</span>';
         lockVaultBtn.classList.add('hidden');
+        setVaultIndicator('locked');
     } else if (isUnlocked()) {
         passwordStatus.innerHTML = '<span class="status-success">Vault entsperrt. Keys sind zugreifbar.</span>';
         lockVaultBtn.classList.remove('hidden');
+        setVaultIndicator('unlocked');
     } else {
         passwordStatus.innerHTML = '<span class="status-error">Vault gesperrt. Bitte entsperren.</span>';
         lockVaultBtn.classList.add('hidden');
+        setVaultIndicator('locked');
     }
 }
 
 /**
- * Aktualisiert den Status-Badge im Header.
+ * Setzt den Vault-Punkt im Header.
+ * @param {'unlocked'|'locked'} state
+ */
+function setVaultIndicator(state) {
+    if (!vaultStatusIndicator) return;
+    if (state === 'unlocked') {
+        vaultStatusIndicator.classList.remove('vault-locked');
+        vaultStatusIndicator.classList.add('vault-unlocked');
+        vaultStatusIndicator.title = 'Vault entsperrt';
+    } else {
+        vaultStatusIndicator.classList.remove('vault-unlocked');
+        vaultStatusIndicator.classList.add('vault-locked');
+        vaultStatusIndicator.title = 'Vault gesperrt';
+    }
+}
+
+/**
+ * Aktualisiert den Status-Badge im Header sowie den Provider-Switcher.
  */
 function updateProviderStatus() {
     if (activeProviderBadge) {
         activeProviderBadge.textContent = currentProvider.name;
     }
+    updateProviderSwitcher();
+}
+
+/**
+ * Rendert den aktiven Provider in den Switcher auf der Startseite.
+ * Zeigt Icon (in Provider-Farbe) + Name + Status-Badge.
+ * Status: "bereit" (gruen) wenn Vault offen und Keys vorhanden,
+ *         "Key fehlt" (orange) sonst.
+ */
+async function updateProviderSwitcher() {
+    if (!providerSwitcher) return;
+
+    const meta = getProviderMeta(currentProvider.id);
+
+    // Icon in der Provider-Farbe
+    if (switcherProviderIcon) {
+        switcherProviderIcon.innerHTML =
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${meta.icon}</svg>`;
+        switcherProviderIcon.style.color = meta.color;
+    }
+
+    if (switcherProviderName) {
+        switcherProviderName.textContent = currentProvider.name;
+    }
+
+    // Status pruefen (asynchron, weil Vault-Abfrage noetig ist)
+    if (switcherProviderStatus) {
+        switcherProviderStatus.textContent = 'pruefe...';
+        switcherProviderStatus.className = 'provider-switcher-status status-checking';
+        try {
+            const ready = await checkCurrentProviderKeys();
+            if (ready) {
+                switcherProviderStatus.textContent = 'bereit';
+                switcherProviderStatus.className = 'provider-switcher-status status-ready';
+            } else {
+                switcherProviderStatus.textContent = 'Key fehlt';
+                switcherProviderStatus.className = 'provider-switcher-status status-missing';
+            }
+        } catch (err) {
+            switcherProviderStatus.textContent = 'gesperrt';
+            switcherProviderStatus.className = 'provider-switcher-status status-missing';
+        }
+    }
+}
+
+/**
+ * Baut das Bottom-Sheet mit allen 7 Anbietern auf.
+ * Tap auf einen Eintrag = sofort aktiv, Sheet schliesst.
+ */
+function renderProviderSheet() {
+    if (!providerSheetBody) return;
+
+    const allProviders = getAllProviders();
+    providerSheetBody.innerHTML = '';
+
+    const list = document.createElement('div');
+    list.className = 'provider-list';
+
+    allProviders.forEach(provider => {
+        const meta = getProviderMeta(provider.id);
+        const isActive = provider.id === currentProvider.id;
+
+        const item = document.createElement('button');
+        item.className = 'provider-list-item' + (isActive ? ' active' : '');
+        item.type = 'button';
+        item.innerHTML = `
+            <span class="provider-list-icon" style="color: ${meta.color}">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${meta.icon}</svg>
+            </span>
+            <span class="provider-list-text">
+                <span class="provider-list-name">${escapeHTML(provider.name)}</span>
+                <span class="provider-list-tagline">${escapeHTML(meta.tagline)}${provider.multiStage ? ' &middot; 2-Stage' : ''}</span>
+            </span>
+            <span class="provider-list-check">${isActive ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}</span>
+        `;
+
+        item.addEventListener('click', () => selectProviderFromSheet(provider.id));
+        list.appendChild(item);
+    });
+
+    providerSheetBody.appendChild(list);
+
+    // Hinweistext unten
+    const hint = document.createElement('p');
+    hint.className = 'help-text';
+    hint.style.marginTop = '12px';
+    hint.innerHTML = 'API-Keys pro Anbieter unter <strong>Einstellungen</strong> verwalten. Ein Tap hier reicht zum Wechseln.';
+    providerSheetBody.appendChild(hint);
+}
+
+/**
+ * Waehlt einen Provider aus dem Sheet aus und speichert sofort.
+ * @param {string} providerId
+ */
+async function selectProviderFromSheet(providerId) {
+    const provider = getProviderById(providerId);
+    if (!provider) return;
+
+    currentProvider = provider;
+    localStorage.setItem(LS_SELECTED_PROVIDER, providerId);
+
+    // Auch im Settings-Dropdown synchronisieren (falls offen)
+    if (providerSelect) providerSelect.value = providerId;
+
+    await updateProviderSwitcher();
+    renderProviderSheet(); // active-Check neu setzen
+    hideModal(providerSheet);
+
+    toast.info(`Anbieter: ${provider.name}`);
+}
+
+// === Provider-Switcher Events ===
+if (providerSwitcher) {
+    providerSwitcher.addEventListener('click', () => {
+        renderProviderSheet();
+        showModal(providerSheet);
+    });
+}
+if (closeProviderSheetBtn) {
+    closeProviderSheetBtn.addEventListener('click', () => hideModal(providerSheet));
+}
+if (providerSheet) {
+    // Klick auf Hintergrund schliesst das Sheet
+    providerSheet.addEventListener('click', (e) => {
+        if (e.target === providerSheet) hideModal(providerSheet);
+    });
 }
 
 /**
@@ -500,6 +662,7 @@ unlockBtn.addEventListener('click', async () => {
                 updatePasswordStatus();
                 await refreshApiKeyFields();
                 await migrateV1ToV2();
+                updateProviderSwitcher();
             } else {
                 toast.error('Falsches Passwort.');
                 masterPasswordInput.value = '';
@@ -542,6 +705,7 @@ lockVaultBtn.addEventListener('click', () => {
     toast.info('Vault gesperrt.');
     updatePasswordStatus();
     refreshApiKeyFields();
+    updateProviderSwitcher();
 });
 
 /**
@@ -741,11 +905,13 @@ function updateRecordingUI(recording) {
         micIcon.classList.add('hidden');
         stopIcon.classList.remove('hidden');
         if (recordingHint) recordingHint.classList.remove('hidden');
+        if (waveBars) waveBars.classList.remove('hidden');
     } else {
         recordBtn.classList.remove('recording');
         micIcon.classList.remove('hidden');
         stopIcon.classList.add('hidden');
         if (recordingHint) recordingHint.classList.add('hidden');
+        if (waveBars) waveBars.classList.add('hidden');
     }
 }
 
@@ -968,9 +1134,19 @@ function renderReportsList(reports) {
         const item = document.createElement('div');
         item.className = 'report-item';
 
+        // Provider-Farbe fuer den Avatars-Kreis bestimmen
+        // (Suche in der Provider-Liste nach dem Namen, Fallback = Akzentfarbe)
+        const providerMeta = guessProviderMetaByName(report.provider);
+
+        // Avatars-Icon (kleines Mikrofon in Provider-Farbe)
+        const avatarSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${providerMeta.icon}</svg>`;
+
         const providerBadge = report.provider
-            ? `<span class="report-provider">${escapeHTML(report.provider)}</span>`
+            ? `<span class="report-provider" style="color: ${providerMeta.color}; background: ${hexToRgba(providerMeta.color, 0.14)};">${escapeHTML(report.provider)}</span>`
             : '';
+
+        // Vorschau: erste 1-2 Zeilen Inhalt (Markdown bereinigt)
+        const previewText = buildPreview(report.content);
 
         // Tags als kleine Chips (max 3 anzeigen, Rest als "+N")
         const tags = report.tags || [];
@@ -985,17 +1161,75 @@ function renderReportsList(reports) {
         }
 
         item.innerHTML = `
+            <div class="report-avatar" style="background: ${hexToRgba(providerMeta.color, 0.15)}; color: ${providerMeta.color};">
+                ${avatarSVG}
+            </div>
             <div class="report-info">
                 <div class="report-title">${escapeHTML(report.title)}</div>
+                ${previewText ? `<div class="report-preview">${escapeHTML(previewText)}</div>` : ''}
                 <div class="report-meta">${escapeHTML(report.date)} ${providerBadge}</div>
                 ${tagsHTML}
             </div>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted)"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            <svg class="report-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
         `;
 
         item.addEventListener('click', () => openReportDetail(report));
         reportsList.appendChild(item);
     });
+}
+
+/**
+ * Versucht, anhand des gespeicherten Provider-Namens (im Report)
+ * die Provider-Metadaten (Farbe, Icon) zu finden.
+ *
+ * Hintergrund: Reports speichern den Namen ("Google Gemini"),
+ * nicht die Id. Darum vergleichen wir hier ueber den Namen.
+ *
+ * @param {string} providerName
+ * @returns {{color: string, icon: string}}
+ */
+function guessProviderMetaByName(providerName) {
+    if (!providerName) return getProviderMeta('__unknown__');
+    const match = getAllProviders().find(p => p.name === providerName);
+    if (match) return getProviderMeta(match.id);
+    return getProviderMeta('__unknown__');
+}
+
+/**
+ * Erzeugt eine kurze Vorschau aus dem Markdown-Inhalt.
+ * Entfernt Markdown-Symbole und kuerzt auf ~100 Zeichen.
+ *
+ * @param {string} content - Markdown-Text
+ * @returns {string} Vorschau-Text (max ~100 Zeichen)
+ */
+function buildPreview(content) {
+    if (!content) return '';
+    return content
+        .replace(/^#{1,6}\s+/gm, '')      // Ueberschriften-Symbole entfernen
+        .replace(/\*\*(.+?)\*\*/g, '$1')  // Fett-Kursiv
+        .replace(/\*(.+?)\*/g, '$1')       // Kursiv
+        .replace(/- (.+)/g, '$1')          // Listenpunkte
+        .replace(/\[(.+?)\]\(.+?\)/g, '$1') // Links
+        .replace(/\s+/g, ' ')              // Leerzeichen normalisieren
+        .trim()
+        .slice(0, 100);
+}
+
+/**
+ * Wandelt einen Hex-Farbwert in einen rgba()-String um.
+ * Hilfsfunktion fuer transparenz-basierte Hintergruende.
+ *
+ * @param {string} hex - z.B. "#3B82F6"
+ * @param {number} alpha - 0 bis 1
+ * @returns {string} z.B. "rgba(59, 130, 246, 0.14)"
+ */
+function hexToRgba(hex, alpha) {
+    if (!hex || !hex.startsWith('#')) return `rgba(148, 163, 184, ${alpha})`;
+    const cleanHex = hex.replace('#', '');
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 // Live-Suche: bei jeder Eingabe filtern + sortieren

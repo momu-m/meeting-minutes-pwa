@@ -31,13 +31,19 @@
         <!-- ============================== -->
         <header class="app-header">
             <div class="logo-area">
-                <span class="logo-brand">Asetronics</span>
-                <span class="logo-title">Meeting AI</span>
+                <!-- App-Logo: Mikrofon in Kreis, in Akzentfarbe -->
+                <div class="app-logo" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-brand">Asetronics</span>
+                    <span class="logo-title">Meeting AI</span>
+                </div>
             </div>
             <div class="header-actions">
-                <!-- Aktiver Provider wird angezeigt -->
-                <span id="active-provider-badge" class="provider-badge" title="Aktiver KI-Anbieter">Gemini</span>
-                <button id="settings-btn" class="icon-button" title="Einstellungen">
+                <!-- Vault-Status-Punkt (gruen = entsperrt, grau = gesperrt) -->
+                <span id="vault-status-indicator" class="vault-dot vault-locked" title="Vault gesperrt"></span>
+                <button id="settings-btn" class="icon-button" title="Einstellungen" aria-label="Einstellungen oeffnen">
                     <!-- Zahnrad-Icon -->
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 </button>
@@ -48,20 +54,50 @@
         <!-- HAUPTINHALT                    -->
         <!-- ============================== -->
         <main class="app-main">
+
+            <!-- ============================== -->
+            <!-- PROVIDER-SWITCHER (Startseite) -->
+            <!-- ============================== -->
+            <!-- Tappable Karte: Zeigt aktiven Provider.
+                 Tap oeffnet das Bottom-Sheet (#provider-sheet). -->
+            <button id="provider-switcher" class="provider-switcher" aria-label="KI-Anbieter wechseln">
+                <span class="provider-switcher-icon" id="switcher-provider-icon"></span>
+                <span class="provider-switcher-text">
+                    <span class="provider-switcher-label">KI-Anbieter</span>
+                    <span class="provider-switcher-name" id="switcher-provider-name">Wird geladen...</span>
+                </span>
+                <!-- Status-Badge: gruen=bereit, orange=Key fehlt -->
+                <span class="provider-switcher-status" id="switcher-provider-status">pruefe...</span>
+                <!-- Chevron-Rechts -->
+                <svg class="provider-switcher-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+
             <!-- Aufnahme-Bereich -->
             <section class="recorder-section card">
                 <div class="recorder-status" id="record-status">Bereit zum Aufnehmen</div>
                 <div class="timer" id="record-timer">00:00</div>
 
-                <!-- Aufnahme-Knopf mit Puls-Animation -->
+                <!-- Aufnahme-Knopf mit Puls-Animation + Glow + Wellen -->
                 <div class="recorder-control">
+                    <!-- Aeussere Glow-Halo (waehrend Aufnahme sichtbar) -->
+                    <div class="record-glow" id="record-glow"></div>
+                    <!-- Puls-Ring -->
                     <div class="pulse-ring" id="pulse-ring"></div>
-                    <button id="record-btn" class="record-button">
+                    <button id="record-btn" class="record-button" aria-label="Aufnahme starten oder stoppen">
                         <!-- Mikrofon-Icon (wird bei Aufnahme versteckt) -->
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="mic-icon"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                         <!-- Stopp-Icon (wird dynamisch eingeblendet) -->
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="currentColor" id="stop-icon" class="hidden"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect></svg>
                     </button>
+                </div>
+
+                <!-- Schallwellen-Animation (nur waehrend Aufnahme) -->
+                <div class="wave-bars hidden" id="wave-bars" aria-hidden="true">
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
                 </div>
 
                 <!-- Hinweis-Banner: Wird waehrend der Aufnahme angezeigt -->
@@ -98,7 +134,7 @@
                 <div class="search-bar hidden" id="search-bar">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     <input type="text" id="search-input" placeholder="Protokolle durchsuchen..." autocomplete="off">
-                    <button id="clear-search-btn" class="clear-search hidden" title="Suche löschen">&times;</button>
+                    <button id="clear-search-btn" class="clear-search hidden" title="Suche loeschen">&times;</button>
                 </div>
 
                 <!-- Sortierung -->
@@ -121,6 +157,24 @@
                 </div>
             </section>
         </main>
+
+        <!-- ============================== -->
+        <!-- PROVIDER-SWITCHER-MODAL (Sheet)-->
+        <!-- ============================== -->
+        <!-- Bottom-Sheet mit allen 7 Anbietern.
+             Tap auf einen Eintrag = sofort aktiv. -->
+        <div id="provider-sheet" class="modal hidden">
+            <div class="modal-content card small-modal">
+                <div class="modal-header">
+                    <h2>KI-Anbieter waehlen</h2>
+                    <button id="close-provider-sheet-btn" class="close-button" aria-label="Schliessen">&times;</button>
+                </div>
+                <div class="modal-body" id="provider-sheet-body">
+                    <!-- Provider-Optionen werden von app.js hier gerendert -->
+                    <p class="help-text">Lade Anbieter...</p>
+                </div>
+            </div>
+        </div>
 
         <!-- ============================== -->
         <!-- EINSTELLUNGS-MODAL             -->

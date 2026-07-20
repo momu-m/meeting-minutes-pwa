@@ -1,16 +1,18 @@
 // ============================================================
-// SERVICE WORKER v3 — Asetronics Meeting-Minuten AI v2.0
+// SERVICE WORKER v4 — Asetronics Meeting-Minuten AI v2.3
 // ============================================================
-// Cache-Version v3: inkl. neue Provider- und Service-Module.
+// Cache-Version v7: inkl. UI-Redesign (Provider-Switcher,
+// Wellen-Animation, Karten mit Vorschau, Header-Logo).
 //
-// Neue Dateien in v3:
-//   - providers/*.js (8 Module)
-//   - services/*.js (4 Module)
-//   - utils/*.js (3 Module)
+// Geaendert gegenueber v6:
+//   - index.html: Provider-Switcher + Sheet, Header-Logo, Waves
+//   - styles.css: komplettes UI-Polishing
+//   - app.js: Switcher-Logik + Karten-Render mit Vorschau
+//   - providers/base.js: getProviderMeta() hinzugefuegt
 // ============================================================
 
 // Cache-Version - bei jeder Code-Aenderung erhoehen!
-const CACHE_NAME = 'asetronics-meeting-ai-v6';
+const CACHE_NAME = 'asetronics-meeting-ai-v7';
 
 // Liste aller Dateien, die fuer Offline-Modus gecacht werden
 const ASSETS = [

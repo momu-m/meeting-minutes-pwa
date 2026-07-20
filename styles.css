@@ -80,22 +80,61 @@ body {
 
 .logo-area {
     display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-text {
+    display: flex;
     flex-direction: column;
+}
+
+/* App-Logo: Mikrofon in abgerundetem Quadrat (Akzentfarbe) */
+.app-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent-color), #2563eb);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
 }
 
 /* "ASETRONICS" in Grossbuchstaben, Akzentfarbe */
 .logo-brand {
-    font-size: 11px;
+    font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 2px;
+    letter-spacing: 1.8px;
     color: var(--accent-color);
     font-weight: 700;
 }
 
 /* "Meeting AI" als Haupttitel */
 .logo-title {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
+    line-height: 1.1;
+}
+
+/* Vault-Status-Punkt (rechts oben) */
+.vault-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    margin-right: 4px;
+    transition: var(--transition-smooth);
+}
+
+.vault-unlocked {
+    background: var(--success-color);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
+.vault-locked {
+    background: var(--text-muted);
+    opacity: 0.45;
 }
 
 /* ============================================================
@@ -112,14 +151,22 @@ body {
 }
 
 /* ============================================================
-   AUFNAHME-BEREICH
+   AUFNAHME-BEREICH (Hero-Card)
    ============================================================ */
 .recorder-section {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    gap: 14px;
+    box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.28);
+    /* Sanfter Farbverlauf im Kartenhintergrund */
+    background:
+        linear-gradient(180deg, rgba(59, 130, 246, 0.05) 0%, rgba(30, 41, 59, 0.7) 60%),
+        var(--bg-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    position: relative;
+    overflow: hidden;
 }
 
 /* Status-Text (z.B. "Bereit zum Aufnehmen") */
@@ -128,34 +175,61 @@ body {
     color: var(--text-muted);
     font-weight: 500;
     text-align: center;
+    letter-spacing: 0.3px;
 }
 
 /* Timer-Anzeige (z.B. "03:42") */
 .timer {
-    font-size: 48px;
+    font-size: 52px;
     font-weight: 700;
     font-variant-numeric: tabular-nums; /* Gleichbreite Zahlen */
-    letter-spacing: -1px;
+    letter-spacing: -1.5px;
+    line-height: 1.05;
 }
 
-/* Container fuer den Aufnahme-Button und die Puls-Animation */
+/* Container fuer den Aufnahme-Button, Glow und Puls */
 .recorder-control {
     position: relative;
-    width: 100px;
-    height: 100px;
+    width: 120px;
+    height: 120px;
     display: flex;
     justify-content: center;
     align-items: center;
-    margin: 10px 0;
+    margin: 8px 0;
+}
+
+/* Aeussere Glow-Halo (waehrend Aufnahme sichtbar) */
+.record-glow {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(239, 68, 68, 0.45) 0%, rgba(239, 68, 68, 0) 70%);
+    opacity: 0;
+    z-index: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+}
+
+/* Wenn Aufnahme laeuft: Glow anzeigen */
+.recording ~ .record-glow,
+.record-button.recording ~ .record-glow {
+    opacity: 1;
+    animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50%      { transform: scale(1.15); opacity: 0.9; }
 }
 
 /* Der runde Aufnahme-Button (rot) */
 .record-button {
-    width: 80px;
-    height: 80px;
+    width: 84px;
+    height: 84px;
     border-radius: 50%;
     border: none;
-    background-color: var(--danger-color);
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     color: white;
     display: flex;
     justify-content: center;
@@ -163,7 +237,7 @@ body {
     cursor: pointer;
     z-index: 2;
     transition: var(--transition-smooth);
-    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 /* Drueck-Effekt auf dem Button */
@@ -173,16 +247,16 @@ body {
 
 /* Button waehrend der Aufnahme: dunkel mit weissem Rand */
 .record-button.recording {
-    background-color: var(--bg-secondary);
+    background: var(--bg-secondary);
     border: 3px solid var(--text-main);
-    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.06), 0 4px 20px rgba(255, 255, 255, 0.1);
 }
 
 /* Puls-Ring: expandiert und verblasst (nur sichtbar waehrend Aufnahme) */
 .pulse-ring {
     position: absolute;
-    width: 80px;
-    height: 80px;
+    width: 84px;
+    height: 84px;
     border-radius: 50%;
     background-color: var(--danger-color);
     opacity: 0;
@@ -191,7 +265,8 @@ body {
 }
 
 /* Puls-Animation wird aktiviert wenn der Button die Klasse "recording" hat */
-.recording + .pulse-ring {
+.recording + .pulse-ring,
+.record-button.recording + .pulse-ring {
     animation: pulse 1.6s infinite ease-out;
 }
 
@@ -205,6 +280,39 @@ body {
         transform: scale(1.6);
         opacity: 0;
     }
+}
+
+/* ============================================================
+   SCHALLWELLEN-ANIMATION (waehrend der Aufnahme)
+   ============================================================ */
+.wave-bars {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 24px;
+    margin-top: -4px;
+}
+
+.wave-bar {
+    width: 4px;
+    height: 8px;
+    background: var(--accent-color);
+    border-radius: 2px;
+    animation: wave 1.1s ease-in-out infinite;
+    opacity: 0.85;
+}
+
+/* Die 5 Balken nacheinander animieren */
+.wave-bar:nth-child(1) { animation-delay: 0s;    }
+.wave-bar:nth-child(2) { animation-delay: 0.12s; }
+.wave-bar:nth-child(3) { animation-delay: 0.24s; }
+.wave-bar:nth-child(4) { animation-delay: 0.36s; }
+.wave-bar:nth-child(5) { animation-delay: 0.48s; }
+
+@keyframes wave {
+    0%, 100% { height: 8px;  opacity: 0.6; }
+    50%      { height: 22px; opacity: 1;   }
 }
 
 /* ============================================================
@@ -331,17 +439,20 @@ body {
     gap: 10px;
 }
 
-/* Einzelnes Berichts-Element in der Liste */
+/* Einzelnes Berichts-Element in der Liste (Karten-Design mit Avatar) */
 .report-item {
     background: var(--bg-glass);
     border: 1px solid var(--border-glass);
     border-radius: var(--radius-md);
-    padding: 16px;
+    padding: 14px 14px 14px 12px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 12px;
     cursor: pointer;
     transition: var(--transition-smooth);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 .report-item:active {
@@ -349,20 +460,74 @@ body {
     background: rgba(30, 41, 59, 0.9);
 }
 
+/* Avatars-Kreis links (in Provider-Farbe) */
+.report-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
 .report-info {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
+    min-width: 0; /* damit ellipsis in flex funktioniert */
 }
 
 .report-title {
     font-weight: 600;
     font-size: 15px;
+    color: var(--text-main);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+}
+
+/* Vorschau (erste 1-2 Zeilen Inhalt) */
+.report-preview {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    margin-bottom: 2px;
 }
 
 .report-meta {
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+/* Chevron-Rechts in der Karte */
+.report-chevron {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    align-self: center;
+    opacity: 0.5;
+    transition: var(--transition-smooth);
+}
+
+.report-item:active .report-chevron {
+    opacity: 1;
+    transform: translateX(2px);
 }
 
 /* ============================================================
@@ -1300,4 +1465,189 @@ body {
 #sort-select:focus {
     outline: none;
     border-color: var(--accent-color);
+}
+
+/* ============================================================
+   v2.3 PROVIDER-SWITCHER (Startseite)
+   ============================================================ */
+
+/* Tappable Karte ueber dem Aufnahme-Button */
+.provider-switcher {
+    width: 100%;
+    background: var(--bg-glass);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    color: var(--text-main);
+    font-family: inherit;
+    text-align: left;
+}
+
+.provider-switcher:active {
+    transform: scale(0.98);
+    background: rgba(30, 41, 59, 0.9);
+    border-color: var(--accent-color);
+}
+
+/* Provider-Icon im Switcher (links) */
+.provider-switcher-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* Label + Name */
+.provider-switcher-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.provider-switcher-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.provider-switcher-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-top: 1px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Status-Badge rechts (kleines Pillchen) */
+.provider-switcher-status {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+.status-ready {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success-color);
+}
+
+.status-missing {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning-color);
+}
+
+.status-checking {
+    background: rgba(148, 163, 184, 0.12);
+    color: var(--text-muted);
+}
+
+/* Chevron-Rechts */
+.provider-switcher-chevron {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    opacity: 0.6;
+    transition: var(--transition-smooth);
+}
+
+.provider-switcher:active .provider-switcher-chevron {
+    transform: translateX(2px);
+    opacity: 1;
+}
+
+/* ============================================================
+   PROVIDER-SHEET (Bottom-Sheet mit allen Anbietern)
+   ============================================================ */
+
+.provider-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Ein Provider-Eintrag im Sheet */
+.provider-list-item {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    color: var(--text-main);
+    font-family: inherit;
+    text-align: left;
+    transition: var(--transition-smooth);
+}
+
+.provider-list-item:active,
+.provider-list-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--accent-color);
+}
+
+/* Aktiver Provider hervorheben */
+.provider-list-item.active {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--accent-color);
+}
+
+/* Provider-Icon (links) */
+.provider-list-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* Text-Spalte (Name + Tagline) */
+.provider-list-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.provider-list-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.provider-list-tagline {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Check-Icon fuer aktiven Provider */
+.provider-list-check {
+    color: var(--accent-color);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
 }

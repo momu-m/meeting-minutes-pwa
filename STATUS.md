@@ -5,7 +5,7 @@
 
 **Letzte Aktualisierung:** 2026-07-20
 **Live-URL:** https://momu-m.github.io/meeting-minutes-pwa/
-**Aktuelle Version:** v2.2.1 (produktionsklar)
+**Aktuelle Version:** v2.3 (UI-Redesign, lokal getestet - noch nicht live)
 **Backup-Tags:** `v1.0-stable`, `v2.0`, `v2.1`, `v2.1.1`, `v2.2`, `v2.2.1`
 
 ---
@@ -70,6 +70,17 @@
 ---
 
 ## Erledigt (Done)
+
+### v2.3 - 20. Juli 2026 (UI-Redesign "App-Gefuehl")
+- [x] Provider-Switcher direkt auf der Startseite (2 Taps statt Zahnrad-Weg)
+- [x] Bottom-Sheet mit allen 7 Anbietern (Icon in Provider-Farbe, Tagline, Active-Markierung)
+- [x] Aufnahme-Karte: Glow-Halo, Farbverlauf, Mikrofon-Wellen-Animation
+- [x] Header: App-Logo (Mikrofon in abgerundetem Quadrat) + Vault-Status-Punkt
+- [x] Berichts-Karten mit Avatars (Provider-Farbe), Vorschau-Text, mehr Tiefe
+- [x] Provider-Metadaten-Map in providers/base.js (icon/color/tagline) - keine Logik-Aenderung
+- [x] sw.js Cache v6 -> v7
+- [x] Alle 21 JS-Module syntaktisch validiert (node --check)
+- [x] HTML/CSS Konsistenz-Tests bestanden
 
 ### v2.2.1 - 20. Juli 2026 (Security-Audit Fixes)
 - [x] P0 #1: Base64-Konvertierung durch native Blobs ersetzt (Mobile-RAM-Crash verhindert)
